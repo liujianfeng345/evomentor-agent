@@ -28,7 +28,7 @@ class GitHubTool(BaseTool):
                     continue
                 try:
                     commits = repo.get_commits(since=since, author=config.GITHUB_USERNAME)
-                    for commit in commits[:20]:  # 每个仓库最多分析 20 个提交
+                    for commit in commits[:20]:
                         analysis = await self._analyze_commit(repo.name, commit)
                         if analysis:
                             reports.append(analysis)
@@ -49,6 +49,8 @@ class GitHubTool(BaseTool):
                 except GithubException:
                     continue
 
+        except GithubException as e:
+            return ToolResult(success=False, content=f"GitHub API 调用失败: {e.status} - {e.data}")
         finally:
             g.close()
 
