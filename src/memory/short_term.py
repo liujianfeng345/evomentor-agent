@@ -13,6 +13,7 @@ class Message:
     timestamp: datetime = field(default_factory=datetime.now)
     tool_calls: list[dict] | None = None
     tool_call_id: str | None = None
+    reasoning_content: str | None = None  # DeepSeek thinking 模式要求原样传回
 
     def to_dict(self) -> dict:
         result = {
@@ -43,12 +44,14 @@ class ShortTermMemory:
         ))
         self._trim()
 
-    def add_assistant_tool_calls(self, content: str, tool_calls_schema: list[dict]) -> None:
+    def add_assistant_tool_calls(self, content: str, tool_calls_schema: list[dict],
+                                 reasoning_content: str | None = None) -> None:
         """添加包含 tool_calls 的 assistant 消息（符合 OpenAI API 格式）。"""
         self.messages.append(Message(
             role="assistant",
             content=content or None,
             tool_calls=tool_calls_schema if tool_calls_schema else None,
+            reasoning_content=reasoning_content,
         ))
 
     def add_tool_result(self, tool_name: str, result: str, tool_call_id: str = "") -> None:
@@ -69,6 +72,8 @@ class ShortTermMemory:
                 msg["tool_call_id"] = m.tool_call_id
             if m.tool_calls:
                 msg["tool_calls"] = m.tool_calls
+            if m.reasoning_content:
+                msg["reasoning_content"] = m.reasoning_content
             result.append(msg)
         return result
 
