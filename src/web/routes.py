@@ -1,7 +1,8 @@
 """API 路由 —— Web 聊天接口。"""
+import json
 import os
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from src.core.agent import Agent
 
@@ -40,6 +41,25 @@ async def chat(req: ChatRequest) -> ChatResponse:
 @router.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@router.post("/api/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """流式聊天 SSE 端点。"""
+    agent = get_agent()
+
+    async def event_generator():
+        async for event in agent.handle_message_stream(req.message):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 """报告与记忆相关的 API 端点。"""
