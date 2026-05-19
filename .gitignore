@@ -7,6 +7,7 @@ data/
 # IDE
 .vscode/
 .idea/
+.superpowers/
 
 # Python
 __pycache__/
