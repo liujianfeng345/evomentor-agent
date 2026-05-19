@@ -354,6 +354,50 @@ function switchTab(name) {
 $$('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
+
+// ═══ 聊天 Tab ═══
+const chatMessages = document.getElementById('chat-messages');
+const msgInput = document.getElementById('message');
+const sendBtn = document.getElementById('send');
+
+msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+async function sendMessage() {
+    const text = msgInput.value.trim();
+    if (!text) return;
+    addChatMsg('user', text);
+    msgInput.value = '';
+    sendBtn.disabled = true;
+    const loading = addChatMsg('assistant', '思考中...', true);
+    try {
+        const data = await api('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text }),
+        });
+        loading.remove();
+        addChatMsg('assistant', data.reply);
+    } catch (e) {
+        loading.remove();
+        addChatMsg('assistant', '出错了: ' + e.message);
+    }
+    sendBtn.disabled = false;
+}
+
+function addChatMsg(role, content, isLoading = false) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = content;
+    if (isLoading) div.classList.add('loading');
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return div;
+}
 </script>
 </body>
 </html>
