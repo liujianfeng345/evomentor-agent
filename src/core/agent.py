@@ -65,18 +65,20 @@ class Agent:
 
     async def handle_message_stream(self, user_message: str):
         """流式版 handle_message，返回 async generator，yield SSE 事件 dict。"""
-        context = retrieve_relevant_context(user_message)
-        self.short_term.add("user", user_message)
+        try:
+            context = retrieve_relevant_context(user_message)
+            self.short_term.add("user", user_message)
 
-        async for event in self._agent_loop_stream(
-            trigger="user_message",
-            initial_context=context,
-            max_rounds=5,
-        ):
-            yield event
-
-        # 持久化 + 清除短期记忆
-        self._persist_and_clear()
+            async for event in self._agent_loop_stream(
+                trigger="user_message",
+                initial_context=context,
+                max_rounds=5,
+            ):
+                yield event
+        except Exception as e:
+            yield {"type": "error", "message": f"处理失败: {str(e)}"}
+        finally:
+            self._persist_and_clear()
 
     async def _agent_loop(self, trigger: str, initial_context: str, max_rounds: int) -> str:
         """核心循环：思考 → 行动 → 观察，最多 max_rounds 轮。"""
@@ -195,7 +197,7 @@ class Agent:
                     content_buffer += chunk["content"]
                     yield {"type": "text", "content": chunk["content"]}
 
-                elif chunk.get("reasoning_content"):
+                if chunk.get("reasoning_content"):
                     reasoning_buffer += chunk["reasoning_content"]
 
             # 如果没有 tool_calls，直接结束
@@ -257,6 +259,7 @@ class Agent:
                 else:
                     yield {"type": "tool_step", "name": name, "status": "error"}
 
+            self.short_term.add("system", "工具执行完毕，请根据结果决定下一步。")
             yield {"type": "tool_end"}
 
         # max_rounds 用尽
