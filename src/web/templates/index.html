@@ -183,6 +183,7 @@
                         <option value="github">GitHub 分析</option>
                         <option value="research">研究搜索</option>
                     </select>
+                    <button id="trigger-reflect-btn" style="margin-left:auto;">手动反思</button>
                 </div>
                 <div id="report-list"></div>
                 <button class="secondary" id="report-load-more" style="display:none">加载更多</button>
@@ -795,6 +796,20 @@ document.addEventListener('click', async (e) => {
     STATE.skills.items = STATE.skills.items.filter(i => i.id !== Number(id));
     renderSkillList();
     showToast('已删除', true);
+});
+
+// ═══ 反思触发 ═══
+$('#trigger-reflect-btn').addEventListener('click', async () => {
+    const btn = $('#trigger-reflect-btn');
+    btn.disabled = true;
+    btn.textContent = '反思中...';
+    try {
+        const data = await api('/api/reflect', { method: 'POST' });
+        showToast(data.result || '反思完成', true);
+        loadReports(true);
+    } catch (e) {}
+    btn.disabled = false;
+    btn.textContent = '手动反思';
 });
 </script>
 </body>
