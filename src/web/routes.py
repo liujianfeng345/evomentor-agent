@@ -1,4 +1,5 @@
 """API 路由 —— Web 聊天接口。"""
+import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -378,3 +379,47 @@ async def get_graph():
             resolved_edges.append({"from": from_id, "to": to_id})
 
     return {"nodes": nodes, "edges": resolved_edges}
+
+# ─── Skills ──────────────────────────────────────────────
+
+@router.get("/api/skills")
+async def list_skills(limit: int = 20, offset: int = 0):
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, name, trigger_condition, version, active, usage_count, success_rate, file_path, created_at, updated_at FROM skills ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        (limit, offset),
+    ).fetchall()
+    total_row = conn.execute("SELECT COUNT(*) as cnt FROM skills").fetchone()
+    conn.close()
+    items = [dict(r) for r in rows]
+    return {"items": items, "total": total_row["cnt"]}
+
+
+@router.get("/api/skills/{skill_id}")
+async def get_skill_detail(skill_id: int):
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM skills WHERE id = ?", (skill_id,)).fetchone()
+    conn.close()
+    if not row:
+        return JSONResponse({"error": "Skill 不存在"}, status_code=404)
+    data = dict(row)
+    # 读取 Markdown 文件内容
+    file_path = data.get("file_path", "")
+    if file_path and os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            data["file_content"] = f.read()
+    else:
+        data["file_content"] = ""
+    return data
+
+
+@router.delete("/api/skills/{skill_id}", response_model=DeleteResponse)
+async def delete_skill(skill_id: int):
+    conn = get_connection()
+    row = conn.execute("SELECT file_path FROM skills WHERE id = ?", (skill_id,)).fetchone()
+    if row and row["file_path"] and os.path.exists(row["file_path"]):
+        os.remove(row["file_path"])
+    conn.execute("DELETE FROM skills WHERE id = ?", (skill_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
