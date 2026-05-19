@@ -7,31 +7,39 @@ from src.core.config import config
 
 class LLMClient:
     def __init__(self) -> None:
-        self.client = OpenAI(
-            api_key=config.DEEPSEEK_API_KEY,
-            base_url=config.DEEPSEEK_BASE_URL,
-        )
-        self.model = config.DEEPSEEK_MODEL
+        self.models = {m["id"]: m for m in config.AVAILABLE_MODELS}
+        self.default_model = config.DEFAULT_MODEL
+
+    def _get_client(self, model_id: str):
+        """根据模型 ID 获取对应的 OpenAI 客户端和底层模型名。"""
+        model_id = model_id or self.default_model
+        m = self.models.get(model_id)
+        if not m:
+            m = self.models[self.default_model]
+        client = OpenAI(api_key=m["api_key"], base_url=m["base_url"])
+        return client, m["model"]
 
     def chat(
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
         temperature: float = 0.7,
+        model_id: str = "",
     ) -> dict:
         """发送聊天请求，支持 Tool Calling。失败自动重试 3 次。"""
+        client, model_name = self._get_client(model_id)
         last_error = None
         for attempt in range(config.LLM_MAX_RETRIES):
             try:
                 kwargs = {
-                    "model": self.model,
+                    "model": model_name,
                     "messages": messages,
                     "temperature": temperature,
                 }
                 if tools:
                     kwargs["tools"] = tools
                     kwargs["tool_choice"] = "auto"
-                response = self.client.chat.completions.create(**kwargs)
+                response = client.chat.completions.create(**kwargs)
                 choice = response.choices[0]
                 result = {
                     "content": choice.message.content or "",
@@ -58,7 +66,8 @@ class LLMClient:
 
     def embed(self, text: str) -> list[float]:
         """生成文本的 embedding 向量。"""
-        response = self.client.embeddings.create(
+        client, _ = self._get_client(self.default_model)
+        response = client.embeddings.create(
             model="deepseek-chat",
             input=text,
         )
@@ -69,14 +78,16 @@ class LLMClient:
         messages: list[dict],
         tools: list[dict] | None = None,
         temperature: float = 0.7,
+        model_id: str = "",
     ):
         """流式聊天，yield 每个 delta chunk。
 
         tool_calls 在流式模式下分片到达，调用方需自行累积拼接。
         重试仅覆盖初始 create() 调用；流开始后异常直接传播，避免已 yield 的数据块重复。
         """
+        client, model_name = self._get_client(model_id)
         kwargs = {
-            "model": self.model,
+            "model": model_name,
             "messages": messages,
             "temperature": temperature,
             "stream": True,
@@ -89,7 +100,7 @@ class LLMClient:
         last_error = None
         for attempt in range(config.LLM_MAX_RETRIES):
             try:
-                response = self.client.chat.completions.create(**kwargs)
+                response = client.chat.completions.create(**kwargs)
                 break  # 连接成功，退出重试循环
             except Exception as e:
                 last_error = e
