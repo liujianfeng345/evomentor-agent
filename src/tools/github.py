@@ -1,5 +1,5 @@
 """GitHub 分析工具 —— 拉取用户 commits 和 Star 仓库动态，分析代码问题。"""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from github import Github, GithubException
 from src.tools.base import BaseTool, ToolResult
 from src.core.config import config
@@ -16,7 +16,7 @@ class GitHubTool(BaseTool):
             return ToolResult(success=False, content="GitHub Token 未配置")
 
         g = Github(config.GITHUB_TOKEN)
-        since = datetime.now() - timedelta(days=days)
+        since = datetime.now(timezone.utc) - timedelta(days=days)
         reports: list[str] = []
 
         try:
@@ -32,7 +32,7 @@ class GitHubTool(BaseTool):
                         analysis = await self._analyze_commit(repo.name, commit)
                         if analysis:
                             reports.append(analysis)
-                except (GithubException, IndexError):
+                except (GithubException, IndexError, TypeError):
                     continue
 
             # 2. 分析 Star 仓库动态
@@ -46,10 +46,10 @@ class GitHubTool(BaseTool):
                             f"最新 Release {latest_release.tag_name} — {latest_release.title}\n"
                             f"{latest_release.body[:300]}"
                         )
-                except (GithubException, IndexError):
+                except (GithubException, IndexError, TypeError):
                     continue
 
-        except (GithubException, IndexError) as e:
+        except (GithubException, IndexError, TypeError) as e:
             return ToolResult(success=False, content=f"GitHub API 调用失败: {e.status} - {e.data}")
         finally:
             g.close()
