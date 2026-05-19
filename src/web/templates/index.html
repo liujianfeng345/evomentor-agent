@@ -727,6 +727,75 @@ function renderGraphList(nodes) {
 window.addEventListener('resize', () => {
     if (STATE.currentTab === 'graph') loadGraph();
 });
+
+// ═══ Skills Tab ═══
+async function loadSkills(reset = true) {
+    if (reset) { STATE.skills.offset = 0; STATE.skills.items = []; STATE.skills.hasMore = true; $('#skill-list').innerHTML = ''; }
+    if (!STATE.skills.hasMore) return;
+    const params = new URLSearchParams({ limit: '20', offset: String(STATE.skills.offset) });
+    const data = await api('/api/skills?' + params);
+    STATE.skills.items = STATE.skills.items.concat(data.items);
+    STATE.skills.offset += data.items.length;
+    STATE.skills.hasMore = data.items.length === 20;
+    renderSkillList();
+    $('#skill-load-more').style.display = STATE.skills.hasMore ? 'block' : 'none';
+}
+
+function renderSkillList() {
+    const container = $('#skill-list');
+    const search = ($('#skill-search').value || '').toLowerCase();
+    container.innerHTML = '';
+    STATE.skills.items.forEach(item => {
+        if (search && !item.name.toLowerCase().includes(search) && !item.trigger_condition.toLowerCase().includes(search)) return;
+        const activeLabel = item.active ? '活跃' : '闲置';
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+            <div class="card-header">
+                <div>
+                    <span style="font-size:16px;">&#128736;</span>
+                    <span class="card-title">${escapeHtml(item.name)}</span>
+                    <span style="font-size:11px;color:#888;">v${item.version} · ${activeLabel}</span>
+                    <div class="card-meta">触发: ${escapeHtml(item.trigger_condition || '')}</div>
+                    <div class="card-meta">使用: ${item.usage_count}次 · 成功率: ${(item.success_rate * 100).toFixed(0)}%</div>
+                </div>
+                <button class="delete-btn" data-action="delete-skill" data-id="${item.id}">&times;</button>
+            </div>
+            <div class="card-detail"></div>
+        `;
+        card.addEventListener('click', async (e) => {
+            if (e.target.closest('[data-action]')) return;
+            const detail = card.querySelector('.card-detail');
+            if (card.classList.contains('expanded')) { card.classList.remove('expanded'); return; }
+            if (!detail.innerHTML) {
+                detail.innerHTML = '<span style="color:#888;">加载中...</span>';
+                try {
+                    const full = await api('/api/skills/' + item.id);
+                    detail.innerHTML = simpleMd(full.file_content || full.behavior_rules || '暂无内容');
+                } catch (e) {
+                    detail.innerHTML = '<span style="color:#e94560;">加载失败</span>';
+                }
+            }
+            card.classList.add('expanded');
+        });
+        container.appendChild(card);
+    });
+}
+
+$('#skill-search').addEventListener('input', () => renderSkillList());
+$('#skill-load-more').addEventListener('click', () => loadSkills(false));
+
+document.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-action="delete-skill"]');
+    if (!del) return;
+    e.stopPropagation();
+    const id = del.dataset.id;
+    if (!(await showModal('确定要删除这个 Skill 吗？将同时删除对应的 .md 文件。'))) return;
+    await api('/api/skills/' + id, { method: 'DELETE' });
+    STATE.skills.items = STATE.skills.items.filter(i => i.id !== Number(id));
+    renderSkillList();
+    showToast('已删除', true);
+});
 </script>
 </body>
 </html>
