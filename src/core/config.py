@@ -31,6 +31,33 @@ class Config:
     # Agent
     SHORT_TERM_MAX_MESSAGES: int = 50
     LLM_MAX_RETRIES: int = 3
+
+    # 模型注册表
+    AVAILABLE_MODELS: list[dict] = [
+        {
+            "id": "deepseek-v4-flash",
+            "name": "DeepSeek v4-flash",
+            "provider": "deepseek",
+            "model": os.getenv("DEEPSEEK_V4_FLASH_MODEL", "deepseek-chat"),
+            "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
+            "icon": "⚡",
+            "description": "快速响应，适合日常对话",
+        },
+        {
+            "id": "deepseek-v4-pro",
+            "name": "DeepSeek v4-pro",
+            "provider": "deepseek",
+            "model": os.getenv("DEEPSEEK_V4_PRO_MODEL", "deepseek-reasoner"),
+            "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
+            "icon": "🧠",
+            "description": "深度推理，适合复杂问题",
+        },
+    ]
+
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "deepseek-v4-flash")
+
     SKILL_CONFIDENCE_THRESHOLD: float = 0.5
 
 
