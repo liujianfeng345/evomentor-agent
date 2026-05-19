@@ -559,6 +559,75 @@ document.addEventListener('click', async (e) => {
     renderEmailList();
     showToast('已删除', true);
 });
+
+// ═══ 记忆 Tab ═══
+async function loadMemories(reset = true) {
+    if (reset) { STATE.memories.offset = 0; STATE.memories.items = []; STATE.memories.hasMore = true; $('#memory-list').innerHTML = ''; }
+    if (!STATE.memories.hasMore) return;
+    const params = new URLSearchParams({ limit: '20', offset: String(STATE.memories.offset) });
+    if (STATE.memories.type) params.set('type', STATE.memories.type);
+    if (STATE.memories.search) params.set('search', STATE.memories.search);
+    const data = await api('/api/memories?' + params);
+    STATE.memories.items = STATE.memories.items.concat(data.items);
+    STATE.memories.offset += data.items.length;
+    STATE.memories.hasMore = data.items.length === 20;
+    renderMemoryList();
+    $('#memory-load-more').style.display = STATE.memories.hasMore ? 'block' : 'none';
+}
+
+function renderMemoryList() {
+    const container = $('#memory-list');
+    container.innerHTML = '';
+    STATE.memories.items.forEach(item => {
+        const typeLabel = { conversation: '对话', experience: '经验', decision: '决策' }[item.type] || item.type;
+        const icon = { conversation: '&#128172;', experience: '&#128161;', decision: '&#129504;' }[item.type] || '';
+        const card = document.createElement('div');
+        card.className = 'card';
+        let metaExtra = '';
+        if (item.type === 'conversation') metaExtra = `角色: ${item.role} | 标签: ${item.tags}`;
+        if (item.type === 'experience') metaExtra = `分类: ${item.category} | 来源: ${item.source} | 置信度: ${item.confidence}`;
+        if (item.type === 'decision') metaExtra = `触发: ${item.trigger_name} | 工具: ${item.tool_calls}`;
+        card.innerHTML = `
+            <div class="card-header">
+                <div>
+                    <span class="badge ${item.type}">${icon} ${typeLabel}</span>
+                    <span class="card-title">${escapeHtml(item.title)}</span>
+                    <div class="card-meta">${timeAgo(item.created_at)} &nbsp; ${escapeHtml(metaExtra)}</div>
+                </div>
+                <button class="delete-btn" data-action="delete-memory" data-id="${item.id}">&times;</button>
+            </div>
+            <div class="card-preview">${escapeHtml(item.preview)}</div>
+            <div class="card-detail">${simpleMd(item.outcome || item.preview || '')}</div>
+        `;
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action]')) return;
+            card.classList.toggle('expanded');
+        });
+        container.appendChild(card);
+    });
+}
+
+$('#memory-search').addEventListener('input', () => {
+    STATE.memories.search = $('#memory-search').value;
+    loadMemories(true);
+});
+$('#memory-type-filter').addEventListener('change', () => {
+    STATE.memories.type = $('#memory-type-filter').value;
+    loadMemories(true);
+});
+$('#memory-load-more').addEventListener('click', () => loadMemories(false));
+
+document.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-action="delete-memory"]');
+    if (!del) return;
+    e.stopPropagation();
+    const id = del.dataset.id;
+    if (!(await showModal('确定要删除这条记忆吗？'))) return;
+    await api('/api/memories/' + id, { method: 'DELETE' });
+    STATE.memories.items = STATE.memories.items.filter(i => i.id !== id);
+    renderMemoryList();
+    showToast('已删除', true);
+});
 </script>
 </body>
 </html>
