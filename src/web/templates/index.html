@@ -471,6 +471,94 @@ document.addEventListener('click', async (e) => {
     renderReportList();
     showToast('已删除', true);
 });
+
+// ═══ 邮件 Tab ═══
+async function loadEmails(reset = true) {
+    if (reset) { STATE.emails.offset = 0; STATE.emails.items = []; STATE.emails.hasMore = true; $('#email-list').innerHTML = ''; }
+    if (!STATE.emails.hasMore) return;
+    const params = new URLSearchParams({ limit: '20', offset: String(STATE.emails.offset) });
+    if (STATE.emails.status) params.set('status', STATE.emails.status);
+    const data = await api('/api/emails?' + params);
+    STATE.emails.items = STATE.emails.items.concat(data.items);
+    STATE.emails.offset += data.items.length;
+    STATE.emails.hasMore = data.items.length === 20;
+    renderEmailList();
+    $('#email-load-more').style.display = STATE.emails.hasMore ? 'block' : 'none';
+}
+
+function renderEmailList() {
+    const container = $('#email-list');
+    container.innerHTML = '';
+    STATE.emails.items.forEach(item => {
+        const statusText = { sent: '已发送', pending: '待发', failed: '失败' }[item.status] || item.status;
+        const statusIcon = { sent: '&#9989;', pending: '&#9203;', failed: '&#10060;' }[item.status] || '';
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+            <div class="card-header">
+                <div>
+                    <span class="status-dot ${item.status}"></span>
+                    <span style="font-size:12px;color:#888;">${statusIcon} ${statusText}</span>
+                    <span class="card-title">${escapeHtml(item.subject || '(无主题)')}</span>
+                    <div class="card-meta">${timeAgo(item.sent_at || item.scheduled_at)}</div>
+                </div>
+                <button class="delete-btn" data-action="delete-email" data-id="${item.id}">&times;</button>
+            </div>
+            <div class="card-preview">${escapeHtml(item.preview)}</div>
+            <div class="card-detail"></div>
+        `;
+        card.addEventListener('click', async (e) => {
+            if (e.target.closest('[data-action]')) return;
+            const detail = card.querySelector('.card-detail');
+            if (card.classList.contains('expanded')) { card.classList.remove('expanded'); return; }
+            if (!detail.innerHTML) {
+                detail.innerHTML = '<span style="color:#888;">加载中...</span>';
+                try {
+                    const full = await api('/api/emails/' + item.id);
+                    detail.innerHTML = `<iframe class="email-frame" srcdoc="${full.body.replace(/"/g, '&quot;')}" sandbox="allow-same-origin"></iframe>`;
+                } catch (e) {
+                    detail.innerHTML = '<span style="color:#e94560;">加载失败</span>';
+                }
+            }
+            card.classList.add('expanded');
+        });
+        container.appendChild(card);
+    });
+}
+
+$$('.status-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+        $$('.status-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        STATE.emails.status = btn.dataset.status;
+        loadEmails(true);
+    });
+});
+
+$('#send-all-btn').addEventListener('click', async () => {
+    const btn = $('#send-all-btn');
+    btn.disabled = true; btn.textContent = '发送中...';
+    try {
+        const data = await api('/api/emails/send', { method: 'POST' });
+        showToast(data.result || '发送成功', true);
+        loadEmails(true);
+    } catch (e) {}
+    btn.disabled = false; btn.textContent = '立即发送全部';
+});
+
+$('#email-load-more').addEventListener('click', () => loadEmails(false));
+
+document.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-action="delete-email"]');
+    if (!del) return;
+    e.stopPropagation();
+    const id = del.dataset.id;
+    if (!(await showModal('确定要删除这封邮件吗？'))) return;
+    await api('/api/emails/' + id, { method: 'DELETE' });
+    STATE.emails.items = STATE.emails.items.filter(i => i.id !== Number(id));
+    renderEmailList();
+    showToast('已删除', true);
+});
 </script>
 </body>
 </html>
