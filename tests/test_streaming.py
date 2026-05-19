@@ -58,3 +58,28 @@ async def test_non_streaming_chat_still_works(client):
         assert resp.status_code == 200
         data = resp.json()
         assert "reply" in data
+
+
+@pytest.mark.asyncio
+async def test_static_css_served(client):
+    """验证静态 CSS 文件可访问。"""
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.get("/static/style.css")
+        assert resp.status_code == 200
+        assert "text/css" in resp.headers.get("content-type", "")
+        assert len(resp.text) > 1000
+
+
+@pytest.mark.asyncio
+async def test_index_page_loads(client):
+    """验证主页 HTML 可加载且引用外部 CSS。"""
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.get("/")
+        assert resp.status_code == 200
+        html = resp.text
+        assert '/static/style.css' in html
+        assert '<style>' not in html
