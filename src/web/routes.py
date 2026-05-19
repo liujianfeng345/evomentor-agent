@@ -21,6 +21,7 @@ def get_agent() -> Agent:
 
 class ChatRequest(BaseModel):
     message: str
+    model: str = ""  # 模型 ID，空则用默认
 
 
 class ChatResponse(BaseModel):
@@ -34,7 +35,7 @@ class DeleteResponse(BaseModel):
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
     agent = get_agent()
-    reply = await agent.handle_message(req.message)
+    reply = await agent.handle_message(req.message, model_id=req.model)
     return ChatResponse(reply=reply)
 
 
@@ -43,13 +44,32 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+@router.get("/api/models")
+async def list_models():
+    """返回可用模型列表（不含 API key 等敏感信息）。"""
+    from src.core.config import config as app_config
+    return {
+        "models": [
+            {
+                "id": m["id"],
+                "name": m["name"],
+                "provider": m["provider"],
+                "icon": m.get("icon", ""),
+                "description": m.get("description", ""),
+            }
+            for m in app_config.AVAILABLE_MODELS
+        ],
+        "default": app_config.DEFAULT_MODEL,
+    }
+
+
 @router.post("/api/chat/stream")
 async def chat_stream(req: ChatRequest):
     """流式聊天 SSE 端点。"""
     agent = get_agent()
 
     async def event_generator():
-        async for event in agent.handle_message_stream(req.message):
+        async for event in agent.handle_message_stream(req.message, model_id=req.model):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
