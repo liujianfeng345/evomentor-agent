@@ -63,6 +63,21 @@ class Agent:
             max_rounds=8,
         )
 
+    async def handle_message_stream(self, user_message: str):
+        """流式版 handle_message，返回 async generator，yield SSE 事件 dict。"""
+        context = retrieve_relevant_context(user_message)
+        self.short_term.add("user", user_message)
+
+        async for event in self._agent_loop_stream(
+            trigger="user_message",
+            initial_context=context,
+            max_rounds=5,
+        ):
+            yield event
+
+        # 持久化 + 清除短期记忆
+        self._persist_and_clear()
+
     async def _agent_loop(self, trigger: str, initial_context: str, max_rounds: int) -> str:
         """核心循环：思考 → 行动 → 观察，最多 max_rounds 轮。"""
         context = initial_context
@@ -135,15 +150,109 @@ class Agent:
             if outcomes:
                 final_response = "\n".join(outcomes)
 
-        # 保存对话到长期存储
+        self._persist_and_clear()
+        return final_response
+
+    def _persist_and_clear(self):
+        """持久化对话到长期存储，清除短期记忆。"""
         for msg in self.short_term.get_all():
             lts.save_conversation(
                 role=msg.role, content=msg.content,
                 tags=msg.tags, intent=msg.intent,
                 session_id=self.session_id,
             )
-
-        # 清除短期记忆，避免下次调用时残留历史 tool_calls 导致 API 错误
         self.short_term.clear()
 
-        return final_response
+    async def _agent_loop_stream(self, trigger: str, initial_context: str, max_rounds: int):
+        """流式版 Agent 循环，yield SSE 事件 dict。"""
+        context = initial_context
+
+        for _ in range(max_rounds):
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": f"## 相关记忆\n{context}"},
+            ]
+            messages.extend(self.short_term.get_for_llm())
+
+            tool_calls_buffer: dict[int, dict] = {}
+            content_buffer = ""
+
+            for chunk in llm.chat_stream(messages, tools=self.tools.get_schemas()):
+                if chunk["tool_calls"]:
+                    for tc in chunk["tool_calls"]:
+                        idx = tc.index
+                        if idx not in tool_calls_buffer:
+                            tool_calls_buffer[idx] = {
+                                "id": tc.id or "",
+                                "name": tc.function.name or "",
+                                "arguments": "",
+                            }
+                        if tc.function.arguments:
+                            tool_calls_buffer[idx]["arguments"] += tc.function.arguments
+
+                elif chunk["content"]:
+                    content_buffer += chunk["content"]
+                    yield {"type": "text", "content": chunk["content"]}
+
+            # 如果没有 tool_calls，直接结束
+            if not tool_calls_buffer:
+                if content_buffer:
+                    self.short_term.add("assistant", content_buffer)
+                yield {"type": "done"}
+                return
+
+            # 有 tool_calls：通知前端、执行工具、继续循环
+            tools_list = [{"name": v["name"]} for v in tool_calls_buffer.values()]
+            yield {"type": "tool_start", "tools": tools_list}
+
+            # 记录决策
+            decision_tool_names = [v["name"] for v in tool_calls_buffer.values()]
+            lts.log_decision(
+                trigger=trigger,
+                tool_calls=decision_tool_names,
+                reasoning=content_buffer,
+                outcome="",
+            )
+
+            # 构建 assistant tool_calls 消息
+            tool_calls_schema = [
+                {
+                    "id": v["id"],
+                    "type": "function",
+                    "function": {"name": v["name"], "arguments": v["arguments"]},
+                }
+                for v in tool_calls_buffer.values()
+            ]
+            self.short_term.add_assistant_tool_calls(
+                content_buffer, tool_calls_schema
+            )
+
+            for tc_data in tool_calls_buffer.values():
+                name = tc_data["name"]
+                yield {"type": "tool_step", "name": name, "status": "running"}
+
+                tool = self.tools.get(name)
+                if tool:
+                    try:
+                        args = json.loads(tc_data["arguments"])
+                        result = await tool.execute(**args)
+                        self.short_term.add_tool_result(
+                            name, result.content,
+                            tool_call_id=tc_data["id"],
+                        )
+                        if result.metadata:
+                            context += f"\n{name} 元数据: {result.metadata}"
+                        yield {"type": "tool_step", "name": name, "status": "done"}
+                    except (json.JSONDecodeError, Exception) as e:
+                        self.short_term.add_tool_result(
+                            name, f"执行失败: {e}",
+                            tool_call_id=tc_data["id"],
+                        )
+                        yield {"type": "tool_step", "name": name, "status": "error"}
+                else:
+                    yield {"type": "tool_step", "name": name, "status": "error"}
+
+            yield {"type": "tool_end"}
+
+        # max_rounds 用尽
+        yield {"type": "done"}
