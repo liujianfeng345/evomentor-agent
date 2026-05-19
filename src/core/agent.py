@@ -32,7 +32,7 @@ class Agent:
         self.tools = ToolRegistry(self.short_term)
         self.session_id = str(uuid.uuid4())[:8]
 
-    async def handle_message(self, user_message: str) -> str:
+    async def handle_message(self, user_message: str, model_id: str = "") -> str:
         """被动触发：处理用户消息。"""
         # 感知
         context = retrieve_relevant_context(user_message)
@@ -43,6 +43,7 @@ class Agent:
             trigger="user_message",
             initial_context=context,
             max_rounds=5,
+            model_id=model_id,
         )
 
     async def handle_scheduled(self, trigger: str) -> str:
@@ -63,7 +64,7 @@ class Agent:
             max_rounds=8,
         )
 
-    async def handle_message_stream(self, user_message: str):
+    async def handle_message_stream(self, user_message: str, model_id: str = ""):
         """流式版 handle_message，返回 async generator，yield SSE 事件 dict。"""
         try:
             context = retrieve_relevant_context(user_message)
@@ -73,6 +74,7 @@ class Agent:
                 trigger="user_message",
                 initial_context=context,
                 max_rounds=5,
+                model_id=model_id,
             ):
                 yield event
         except Exception as e:
@@ -80,7 +82,7 @@ class Agent:
         finally:
             self._persist_and_clear()
 
-    async def _agent_loop(self, trigger: str, initial_context: str, max_rounds: int) -> str:
+    async def _agent_loop(self, trigger: str, initial_context: str, max_rounds: int, model_id: str = "") -> str:
         """核心循环：思考 → 行动 → 观察，最多 max_rounds 轮。"""
         context = initial_context
         final_response = ""
@@ -93,7 +95,7 @@ class Agent:
             ]
             messages.extend(self.short_term.get_for_llm())
 
-            response = llm.chat(messages, tools=self.tools.get_schemas())
+            response = llm.chat(messages, tools=self.tools.get_schemas(), model_id=model_id)
 
             # 记录决策
             tool_calls = response.get("tool_calls", [])
@@ -165,7 +167,7 @@ class Agent:
             )
         self.short_term.clear()
 
-    async def _agent_loop_stream(self, trigger: str, initial_context: str, max_rounds: int):
+    async def _agent_loop_stream(self, trigger: str, initial_context: str, max_rounds: int, model_id: str = ""):
         """流式版 Agent 循环，yield SSE 事件 dict。"""
         context = initial_context
 
@@ -180,7 +182,7 @@ class Agent:
             content_buffer = ""
             reasoning_buffer = ""
 
-            for chunk in llm.chat_stream(messages, tools=self.tools.get_schemas()):
+            for chunk in llm.chat_stream(messages, tools=self.tools.get_schemas(), model_id=model_id):
                 if chunk["tool_calls"]:
                     for tc in chunk["tool_calls"]:
                         idx = tc.index
