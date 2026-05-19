@@ -120,7 +120,8 @@
         .prog-fill.low { background: #0f3460; }
 
         /* 聊天 */
-        #panel-chat { display: flex; flex-direction: column; height: 100%; }
+        #panel-chat { flex-direction: column; height: 100%; }
+        #panel-chat.active { display: flex; }
         #chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
         #input-area { flex-shrink: 0; display: flex; gap: 10px; }
         .msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; line-height: 1.6; font-size: 14px; word-wrap: break-word; overflow-wrap: break-word; }
