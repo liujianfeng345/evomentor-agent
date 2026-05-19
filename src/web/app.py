@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Evomentor", lifespan=lifespan)
 app.include_router(router)
+app.mount("/static", StaticFiles(directory="src/web/static"), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
