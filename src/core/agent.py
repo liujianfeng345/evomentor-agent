@@ -123,7 +123,10 @@ class Agent:
                         context += f"\n{tc['name']} 元数据: {result.metadata}"
 
             # 工具执行完毕后再写入 short_term，保证 tool_calls 紧跟 tool 结果（满足 OpenAI API 顺序）
-            self.short_term.add_assistant_tool_calls(response.get("content", ""), tool_calls_schema)
+            self.short_term.add_assistant_tool_calls(
+                response.get("content", ""), tool_calls_schema,
+                reasoning_content=response.get("reasoning_content", ""),
+            )
             for tr in tool_results:
                 self.short_term.add_tool_result(tr["tool_name"], tr["content"], tool_call_id=tr["tool_call_id"])
 

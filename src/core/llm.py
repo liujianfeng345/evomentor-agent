@@ -37,6 +37,9 @@ class LLMClient:
                     "content": choice.message.content or "",
                     "role": choice.message.role,
                 }
+                # DeepSeek thinking 模式要求将 reasoning_content 原样传回后续请求
+                if hasattr(choice.message, "reasoning_content") and choice.message.reasoning_content:
+                    result["reasoning_content"] = choice.message.reasoning_content
                 if choice.message.tool_calls:
                     result["tool_calls"] = [
                         {
