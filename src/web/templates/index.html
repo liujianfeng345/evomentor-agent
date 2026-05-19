@@ -316,28 +316,29 @@
     </div>
 
 <script>
-// 配置 marked
-marked.setOptions({
-    breaks: true,
-    gfm: true,
-});
+// 配置 marked + highlight.js（CDN 不可用时自动降级）
+let markdownAvailable = false;
+if (typeof marked !== 'undefined') {
+    marked.setOptions({ breaks: true, gfm: true });
+    if (typeof hljs !== 'undefined') {
+        hljs.configure({ languages: [] });
+        marked.setOptions({
+            highlight: function (code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    try { return hljs.highlight(code, { language: lang }).value; } catch (e) {}
+                }
+                try { return hljs.highlightAuto(code).value; } catch (e) { return code; }
+            },
+        });
+    }
+    markdownAvailable = true;
+}
 
-// 配置 highlight.js
-hljs.configure({ languages: [] });
-marked.setOptions({
-    highlight: function (code, lang) {
-        if (lang && hljs.getLanguage(lang)) {
-            try {
-                return hljs.highlight(code, { language: lang }).value;
-            } catch (e) { /* fall through */ }
-        }
-        try {
-            return hljs.highlightAuto(code).value;
-        } catch (e) {
-            return code;
-        }
-    },
-});
+// 安全的 markdown 渲染函数
+function renderMarkdown(text) {
+    if (markdownAvailable) return marked.parse(text);
+    return simpleMd(text);  // 降级到内置简单渲染
+}
 
 // ═══ 全局状态 ═══
 const STATE = {
@@ -513,7 +514,7 @@ function addChatMsg(role, content, isLoading = false) {
         div.classList.add('loading');
         div.textContent = content;
     } else if (role === 'assistant') {
-        div.innerHTML = marked.parse(content);
+        div.innerHTML = renderMarkdown(content);
     } else if (role === 'user') {
         div.innerHTML = simpleMd(content);
     }
@@ -537,7 +538,7 @@ function createStreamingMsg() {
 
     function appendText(chunk) {
         fullText += chunk;
-        const html = marked.parse(fullText);
+        const html = renderMarkdown(fullText);
         wrapper.innerHTML = html;
         if (toolDetails) {
             wrapper.appendChild(toolDetails);
@@ -594,9 +595,9 @@ function createStreamingMsg() {
 
     function finalize(errorText) {
         if (errorText) {
-            wrapper.innerHTML = marked.parse(errorText);
+            wrapper.innerHTML = renderMarkdown(errorText);
         } else if (fullText) {
-            wrapper.innerHTML = marked.parse(fullText);
+            wrapper.innerHTML = renderMarkdown(fullText);
             if (toolDetails) {
                 wrapper.appendChild(toolDetails);
                 toolDetails.open = false;
