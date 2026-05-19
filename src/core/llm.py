@@ -64,5 +64,44 @@ class LLMClient:
         )
         return response.data[0].embedding
 
+    def chat_stream(
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        temperature: float = 0.7,
+    ):
+        """流式聊天，yield 每个 delta chunk。
+
+        tool_calls 在流式模式下分片到达，调用方需自行累积拼接。
+        """
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
+        last_error = None
+        for attempt in range(config.LLM_MAX_RETRIES):
+            try:
+                response = self.client.chat.completions.create(**kwargs)
+                for chunk in response:
+                    delta = chunk.choices[0].delta
+                    yield {
+                        "content": delta.content or "",
+                        "role": delta.role or "",
+                        "tool_calls": delta.tool_calls or [],
+                        "finish_reason": chunk.choices[0].finish_reason or "",
+                    }
+                return  # 正常结束
+            except Exception as e:
+                last_error = e
+                if attempt < config.LLM_MAX_RETRIES - 1:
+                    time.sleep(2 ** attempt)
+        raise RuntimeError(f"LLM 流式调用失败（已重试 {config.LLM_MAX_RETRIES} 次）: {last_error}")
+
 
 llm = LLMClient()
