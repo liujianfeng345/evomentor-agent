@@ -329,7 +329,10 @@ function renderModelMenu() {
     });
     const model = availableModels.find(m => m.id === currentModel);
     if (model) {
-        menu.innerHTML += `<div class="model-provider">${model.provider} 提供</div>`;
+        const footer = document.createElement('div');
+        footer.className = 'model-provider';
+        footer.textContent = model.provider + ' 提供';
+        menu.appendChild(footer);
     }
 }
 
