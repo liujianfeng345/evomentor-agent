@@ -120,11 +120,12 @@
         .prog-fill.low { background: #0f3460; }
 
         /* 聊天 */
-        #chat-messages { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+        #panel-chat { display: flex; flex-direction: column; height: 100%; }
+        #chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+        #input-area { flex-shrink: 0; display: flex; gap: 10px; }
         .msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; line-height: 1.6; white-space: pre-wrap; font-size: 14px; }
         .msg.user { align-self: flex-end; background: #0f3460; }
         .msg.assistant { align-self: flex-start; background: #16213e; border: 1px solid #0f3460; }
-        #input-area { display: flex; gap: 10px; }
         #message { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; resize: none; font-size: 14px; font-family: inherit; }
         #send { padding: 10px 22px; border: none; border-radius: 8px; background: #e94560; color: #fff; cursor: pointer; font-weight: 600; font-size: 14px; }
         #send:hover { background: #d63851; }
