@@ -176,6 +176,7 @@ class Agent:
 
             tool_calls_buffer: dict[int, dict] = {}
             content_buffer = ""
+            reasoning_buffer = ""
 
             for chunk in llm.chat_stream(messages, tools=self.tools.get_schemas()):
                 if chunk["tool_calls"]:
@@ -193,6 +194,9 @@ class Agent:
                 elif chunk["content"]:
                     content_buffer += chunk["content"]
                     yield {"type": "text", "content": chunk["content"]}
+
+                elif chunk.get("reasoning_content"):
+                    reasoning_buffer += chunk["reasoning_content"]
 
             # 如果没有 tool_calls，直接结束
             if not tool_calls_buffer:
@@ -224,7 +228,8 @@ class Agent:
                 for v in tool_calls_buffer.values()
             ]
             self.short_term.add_assistant_tool_calls(
-                content_buffer, tool_calls_schema
+                content_buffer, tool_calls_schema,
+                reasoning_content=reasoning_buffer or None,
             )
 
             for tc_data in tool_calls_buffer.values():
