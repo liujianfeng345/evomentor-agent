@@ -564,12 +564,25 @@ function createStreamingMsg() {
         if (!toolDetails) return;
         const icon = status === 'running' ? '⏳' :
                      status === 'done' ? '✅' : '❌';
-        const step = document.createElement('div');
-        step.className = 'tool-step ' + status;
-        step.textContent = icon + ' ' + name;
-        toolList.appendChild(step);
-        toolDetails.querySelector('summary').textContent =
-            '⚙ 已调用 ' + toolList.children.length + ' 个工具';
+        // 查找已存在的 running 条目并更新
+        const existing = toolList.querySelector('.tool-step[data-tool="' + name + '"]');
+        if (existing) {
+            existing.className = 'tool-step ' + status;
+            existing.textContent = icon + ' ' + name;
+        } else {
+            const step = document.createElement('div');
+            step.className = 'tool-step ' + status;
+            step.textContent = icon + ' ' + name;
+            step.setAttribute('data-tool', name);
+            toolList.appendChild(step);
+        }
+        // 仅当 done/error 时更新摘要计数（全部完成时隐藏展开）
+        if (status === 'done' || status === 'error') {
+            const doneCount = toolList.querySelectorAll('.tool-step.done, .tool-step.error').length;
+            const total = toolList.children.length;
+            toolDetails.querySelector('summary').textContent =
+                '⚙ 工具调用 (' + doneCount + '/' + total + ')';
+        }
         scrollToBottom();
     }
 

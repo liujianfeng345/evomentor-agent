@@ -257,6 +257,10 @@ class Agent:
                         )
                         yield {"type": "tool_step", "name": name, "status": "error"}
                 else:
+                    self.short_term.add_tool_result(
+                        name, "工具未找到",
+                        tool_call_id=tc_data["id"],
+                    )
                     yield {"type": "tool_step", "name": name, "status": "error"}
 
             self.short_term.add("system", "工具执行完毕，请根据结果决定下一步。")
