@@ -398,6 +398,79 @@ function addChatMsg(role, content, isLoading = false) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return div;
 }
+
+// ═══ 报告 Tab ═══
+async function loadReports(reset = true) {
+    if (reset) { STATE.reports.offset = 0; STATE.reports.items = []; STATE.reports.hasMore = true; $('#report-list').innerHTML = ''; }
+    if (!STATE.reports.hasMore) return;
+    const type = $('#report-type-filter').value;
+    const params = new URLSearchParams({ limit: '20', offset: String(STATE.reports.offset) });
+    if (type) params.set('type', type);
+    const data = await api('/api/reports?' + params);
+    STATE.reports.items = STATE.reports.items.concat(data.items);
+    STATE.reports.offset += data.items.length;
+    STATE.reports.hasMore = data.items.length === 20;
+    renderReportList();
+    $('#report-load-more').style.display = STATE.reports.hasMore ? 'block' : 'none';
+}
+
+function renderReportList() {
+    const container = $('#report-list');
+    const search = ($('#report-search').value || '').toLowerCase();
+    container.innerHTML = '';
+    STATE.reports.items.forEach(item => {
+        if (search && !item.title.toLowerCase().includes(search) && !item.preview.toLowerCase().includes(search)) return;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+            <div class="card-header">
+                <div>
+                    <span class="badge ${item.type}">${item.type === 'github' ? 'GitHub' : '研究'}</span>
+                    <span class="card-title">${escapeHtml(item.title)}</span>
+                    <div class="card-meta">${timeAgo(item.created_at)}</div>
+                </div>
+                <button class="delete-btn" data-action="delete-report" data-id="${item.id}">&times;</button>
+            </div>
+            <div class="card-preview">${escapeHtml(item.preview)}</div>
+            <div class="card-detail"></div>
+        `;
+        card.addEventListener('click', async (e) => {
+            if (e.target.closest('[data-action]')) return;
+            const detail = card.querySelector('.card-detail');
+            if (card.classList.contains('expanded')) {
+                card.classList.remove('expanded');
+                return;
+            }
+            if (!detail.innerHTML) {
+                detail.innerHTML = '<span style="color:#888;">加载中...</span>';
+                try {
+                    const full = await api('/api/reports/' + item.id);
+                    detail.innerHTML = simpleMd(full.content || full.suggestions || '');
+                } catch (e) {
+                    detail.innerHTML = '<span style="color:#e94560;">加载失败</span>';
+                }
+            }
+            card.classList.add('expanded');
+        });
+        container.appendChild(card);
+    });
+}
+
+$('#report-search').addEventListener('input', () => renderReportList());
+$('#report-type-filter').addEventListener('change', () => loadReports(true));
+$('#report-load-more').addEventListener('click', () => loadReports(false));
+
+document.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-action="delete-report"]');
+    if (!del) return;
+    e.stopPropagation();
+    const id = del.dataset.id;
+    if (!(await showModal('确定要删除这条报告吗？'))) return;
+    await api('/api/reports/' + id, { method: 'DELETE' });
+    STATE.reports.items = STATE.reports.items.filter(i => i.id !== id);
+    renderReportList();
+    showToast('已删除', true);
+});
 </script>
 </body>
 </html>
