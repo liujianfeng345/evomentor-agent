@@ -133,3 +133,26 @@ async def test_chat_stream_invalid_model_falls_back(client):
         timeout=60.0,
     ) as resp:
         assert resp.status_code == 200
+
+
+def test_web_search_tool_schema():
+    """验证 web_search 工具的 LLM Schema 正确。"""
+    from src.tools.web_search import WebSearchTool
+    tool = WebSearchTool()
+    schema = tool.to_llm_schema()
+    assert schema["function"]["name"] == "web_search"
+    params = schema["function"]["parameters"]
+    assert "query" in params["properties"]
+    assert params["required"] == ["query"]
+    assert "search_depth" in params["properties"]
+    assert set(params["properties"]["search_depth"]["enum"]) == {"basic", "advanced"}
+
+
+@pytest.mark.asyncio
+async def test_web_search_execute_handles_no_api_key():
+    """验证 web_search 无 API key 时不抛异常，返回错误信息。"""
+    from src.tools.web_search import WebSearchTool
+    tool = WebSearchTool()
+    result = await tool.execute(query="test", search_depth="basic")
+    assert result is not None
+    assert hasattr(result, "content")
