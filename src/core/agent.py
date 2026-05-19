@@ -93,10 +93,10 @@ class Agent:
 
         for _ in range(max_rounds):
             # 思考：让 LLM 决定调用哪个 Tool
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "system", "content": f"## 相关记忆\n{context}"},
-            ]
+            system_msg = SYSTEM_PROMPT
+            if context:
+                system_msg += f"\n\n## 相关记忆\n{context}"
+            messages = [{"role": "system", "content": system_msg}]
             messages.extend(self.short_term.get_for_llm())
 
             response = llm.chat(messages, tools=self.tools.get_schemas(), model_id=model_id)
@@ -176,10 +176,10 @@ class Agent:
         context = initial_context
 
         for _ in range(max_rounds):
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "system", "content": f"## 相关记忆\n{context}"},
-            ]
+            system_msg = SYSTEM_PROMPT
+            if context:
+                system_msg += f"\n\n## 相关记忆\n{context}"
+            messages = [{"role": "system", "content": system_msg}]
             messages.extend(self.short_term.get_for_llm())
 
             tool_calls_buffer: dict[int, dict] = {}
