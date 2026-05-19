@@ -27,16 +27,16 @@ class GitHubTool(BaseTool):
                 if repo.fork:
                     continue
                 try:
-                    commits = repo.get_commits(since=since, author=config.GITHUB_USERNAME)
+                    commits = list(repo.get_commits(since=since, author=config.GITHUB_USERNAME))
                     for commit in commits[:20]:
                         analysis = await self._analyze_commit(repo.name, commit)
                         if analysis:
                             reports.append(analysis)
-                except GithubException:
+                except (GithubException, IndexError):
                     continue
 
             # 2. 分析 Star 仓库动态
-            starred = user.get_starred()
+            starred = list(user.get_starred())
             for repo in starred[:10]:
                 try:
                     latest_release = repo.get_latest_release()
@@ -46,10 +46,10 @@ class GitHubTool(BaseTool):
                             f"最新 Release {latest_release.tag_name} — {latest_release.title}\n"
                             f"{latest_release.body[:300]}"
                         )
-                except GithubException:
+                except (GithubException, IndexError):
                     continue
 
-        except GithubException as e:
+        except (GithubException, IndexError) as e:
             return ToolResult(success=False, content=f"GitHub API 调用失败: {e.status} - {e.data}")
         finally:
             g.close()
