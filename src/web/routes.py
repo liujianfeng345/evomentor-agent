@@ -361,14 +361,16 @@ async def get_graph():
             })
 
     # 为 edges 中的 parent_topic 补充不在列表中的节点
+    missing_id = -1
     for edge in edges:
         if edge["from"] not in topic_ids:
             nodes.append({
-                "id": -1,
+                "id": missing_id,
                 "label": edge["from"],
                 "proficiency": 0,
             })
-            topic_ids[edge["from"]] = -1
+            topic_ids[edge["from"]] = missing_id
+            missing_id -= 1
 
     # 将 edge 的 label 转为 id
     resolved_edges = []
@@ -418,7 +420,10 @@ async def delete_skill(skill_id: int):
     conn = get_connection()
     row = conn.execute("SELECT file_path FROM skills WHERE id = ?", (skill_id,)).fetchone()
     if row and row["file_path"] and os.path.exists(row["file_path"]):
-        os.remove(row["file_path"])
+        try:
+            os.remove(row["file_path"])
+        except OSError:
+            pass  # 文件删除失败不影响数据库记录清理
     conn.execute("DELETE FROM skills WHERE id = ?", (skill_id,))
     conn.commit()
     conn.close()
