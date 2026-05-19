@@ -41,6 +41,12 @@
             <div class="tab-panel active" id="panel-chat">
                 <div id="chat-messages"></div>
                 <div id="input-area">
+                    <div id="model-selector" class="model-capsule" onclick="toggleModelMenu()">
+                        <span id="current-model-icon">⚡</span>
+                        <span id="current-model-name">加载中...</span>
+                        <span class="model-arrow">▾</span>
+                    </div>
+                    <div id="model-menu" class="model-menu" style="display:none;"></div>
                     <textarea id="message" rows="2" placeholder="输入你的问题... (Enter 发送, Shift+Enter 换行)"></textarea>
                     <button id="send" onclick="sendMessage()">发送</button>
                 </div>
@@ -252,6 +258,96 @@ $$('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
+// ═══ 模型选择器 ═══
+let availableModels = [];
+let currentModel = '';
+
+async function initModelSelector() {
+    try {
+        const data = await api('/api/models');
+        if (!data || !data.models || !data.models.length) return;
+        availableModels = data.models;
+        currentModel = localStorage.getItem('evomentor-model') || data.default;
+        if (!availableModels.find(m => m.id === currentModel)) {
+            currentModel = data.default;
+        }
+        renderModelSelector();
+    } catch (e) {
+        document.getElementById('model-selector').style.display = 'none';
+    }
+}
+
+function renderModelSelector() {
+    const model = availableModels.find(m => m.id === currentModel);
+    if (!model) return;
+    document.getElementById('current-model-icon').textContent = model.icon;
+    document.getElementById('current-model-name').textContent = model.name;
+}
+
+function toggleModelMenu() {
+    const menu = document.getElementById('model-menu');
+    const capsule = document.getElementById('model-selector');
+    if (!menu || !capsule || availableModels.length === 0) return;
+    if (menu.style.display === 'none' || !menu.style.display) {
+        renderModelMenu();
+        menu.style.display = 'block';
+        capsule.classList.add('open');
+    } else {
+        menu.style.display = 'none';
+        capsule.classList.remove('open');
+    }
+}
+
+function selectModel(modelId) {
+    currentModel = modelId;
+    localStorage.setItem('evomentor-model', modelId);
+    renderModelSelector();
+    document.getElementById('model-menu').style.display = 'none';
+    document.getElementById('model-selector').classList.remove('open');
+}
+
+function renderModelMenu() {
+    const menu = document.getElementById('model-menu');
+    const providers = [...new Set(availableModels.map(m => m.provider))];
+    menu.innerHTML = '';
+    providers.forEach((provider) => {
+        availableModels.filter(m => m.provider === provider).forEach(model => {
+            const selected = model.id === currentModel;
+            const div = document.createElement('div');
+            div.className = 'model-option' + (selected ? ' selected' : '');
+            div.innerHTML = `
+                <span class="model-icon">${model.icon}</span>
+                <div class="model-info">
+                    <div class="model-name">${model.name}</div>
+                    <div class="model-desc">${model.description}</div>
+                </div>
+                ${selected ? '<span class="model-check">✓</span>' : ''}
+            `;
+            div.addEventListener('click', (e) => { e.stopPropagation(); selectModel(model.id); });
+            menu.appendChild(div);
+        });
+    });
+    const model = availableModels.find(m => m.id === currentModel);
+    if (model) {
+        menu.innerHTML += `<div class="model-provider">${model.provider} 提供</div>`;
+    }
+}
+
+// 页面初始化时加载模型列表
+initModelSelector();
+
+// 全局点击：点击模型菜单外部关闭
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('model-menu');
+    const capsule = document.getElementById('model-selector');
+    if (menu && capsule && menu.style.display === 'block') {
+        if (!capsule.contains(e.target) && !menu.contains(e.target)) {
+            menu.style.display = 'none';
+            capsule.classList.remove('open');
+        }
+    }
+});
+
 // ═══ 聊天 Tab ═══
 const chatMessages = document.getElementById('chat-messages');
 const msgInput = document.getElementById('message');
@@ -277,7 +373,7 @@ async function sendMessage() {
         const resp = await fetch('/api/chat/stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({ message: text, model: currentModel }),
         });
 
         if (!resp.ok) {

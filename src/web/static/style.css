@@ -250,3 +250,43 @@ header .current-tab { font-size: 13px; color: #6366f1; margin-left: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ═══ 19. Model Switcher ═══ */
+#input-area { position: relative; }
+.model-capsule {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 24px;
+    border: 1px solid #e2e8f0; background: #f8fafc;
+    cursor: pointer; white-space: nowrap; font-size: 13px;
+    color: #334155; user-select: none;
+    transition: border-color 0.15s, background 0.15s;
+    flex-shrink: 0;
+}
+.model-capsule:hover { border-color: #6366f1; background: #eef2ff; }
+.model-capsule.open { border-color: #6366f1; background: #eef2ff; color: #6366f1; }
+
+.model-arrow { font-size: 10px; color: #94a3b8; transition: transform 0.2s; }
+.model-capsule.open .model-arrow { transform: rotate(180deg); }
+
+.model-menu {
+    position: absolute; bottom: 56px; left: 0;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08); min-width: 230px;
+    padding: 6px; z-index: 100;
+}
+.model-menu .model-option {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    transition: background 0.1s;
+}
+.model-menu .model-option:hover { background: #f1f5f9; }
+.model-menu .model-option.selected { background: #eef2ff; }
+.model-menu .model-option .model-icon { font-size: 16px; width: 28px; text-align: center; flex-shrink: 0; }
+.model-menu .model-option .model-info { flex: 1; }
+.model-menu .model-option .model-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+.model-menu .model-option .model-desc { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+.model-menu .model-option .model-check { color: #6366f1; font-size: 14px; }
+.model-menu .model-provider {
+    padding: 6px 12px 2px; font-size: 11px; color: #94a3b8;
+    border-top: 1px solid #e2e8f0; margin-top: 4px;
+}
