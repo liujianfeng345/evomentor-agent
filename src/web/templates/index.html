@@ -628,6 +628,105 @@ document.addEventListener('click', async (e) => {
     renderMemoryList();
     showToast('已删除', true);
 });
+
+// ═══ 知识图谱 Tab ═══
+async function loadGraph() {
+    const data = await api('/api/graph');
+    drawGraph(data.nodes, data.edges);
+    renderGraphList(data.nodes);
+}
+
+function drawGraph(nodes, edges) {
+    const canvas = $('#graph-canvas');
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = 400 * dpr;
+    ctx.scale(dpr, dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = '400px';
+
+    const w = rect.width;
+    const h = 400;
+    ctx.clearRect(0, 0, w, h);
+
+    if (nodes.length === 0) {
+        ctx.fillStyle = '#888';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无知识图谱数据', w / 2, h / 2);
+        return;
+    }
+
+    // 简单圆形布局
+    const cx = w / 2, cy = h / 2;
+    const radius = Math.min(w, h) / 2 - 60;
+    const nodePositions = {};
+
+    nodes.forEach((node, i) => {
+        const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        nodePositions[node.id] = { x, y };
+    });
+
+    // 绘制边
+    edges.forEach(edge => {
+        const from = nodePositions[edge.from];
+        const to = nodePositions[edge.to];
+        if (!from || !to) return;
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.strokeStyle = '#0f3460';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    });
+
+    // 绘制节点
+    nodes.forEach(node => {
+        const pos = nodePositions[node.id];
+        if (!pos) return;
+        const size = 12 + node.proficiency * 4;
+        const colors = ['#0f3460', '#1f6feb', '#bf8700', '#238636', '#238636', '#238636'];
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, size, 0, 2 * Math.PI);
+        ctx.fillStyle = colors[Math.min(node.proficiency, 5)] || '#0f3460';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#e0e0e0';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, pos.x, pos.y + size + 14);
+    });
+}
+
+function renderGraphList(nodes) {
+    const container = $('#graph-list');
+    container.innerHTML = '<h3 style="margin:16px 0 10px;">知识点列表</h3>';
+    nodes.forEach(node => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        const levelText = node.proficiency >= 5 ? '掌握' : node.proficiency >= 3 ? '熟练' : '了解';
+        const levelClass = node.proficiency >= 5 ? 'high' : node.proficiency >= 3 ? 'mid' : 'low';
+        div.innerHTML = `
+            <div class="card-header">
+                <span class="card-title">${escapeHtml(node.label)}</span>
+                <span style="font-size:12px;color:#888;">${levelText} (${node.proficiency}/5)</span>
+            </div>
+            <div class="prog-bar"><div class="prog-fill ${levelClass}" style="width:${node.proficiency * 20}%"></div></div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+window.addEventListener('resize', () => {
+    if (STATE.currentTab === 'graph') loadGraph();
+});
 </script>
 </body>
 </html>
