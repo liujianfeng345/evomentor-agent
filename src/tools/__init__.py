@@ -5,6 +5,7 @@ from src.tools.email_tool import EmailTool
 from src.tools.research import ResearchTool
 from src.tools.reflect import ReflectTool
 from src.tools.skill_manager import SkillManagerTool
+from src.tools.web_search import WebSearchTool
 
 
 class ToolRegistry:
@@ -16,6 +17,7 @@ class ToolRegistry:
             "research": ResearchTool(),
             "reflect": ReflectTool(memory),
             "skill_manager": SkillManagerTool(),
+            "web_search": WebSearchTool(),
         }
 
     def get_schemas(self) -> list[dict]:

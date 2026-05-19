@@ -58,6 +58,9 @@ class Config:
 
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "deepseek-v4-flash")
 
+    # Tavily
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+
     SKILL_CONFIDENCE_THRESHOLD: float = 0.5
 
 
