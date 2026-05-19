@@ -83,3 +83,53 @@ async def test_index_page_loads(client):
         html = resp.text
         assert '/static/style.css' in html
         assert '<style>' not in html
+
+
+@pytest.mark.asyncio
+async def test_models_endpoint_returns_list(client):
+    """验证 /api/models 返回模型列表且不含敏感信息。"""
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.get("/api/models")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "models" in data
+        assert "default" in data
+        assert len(data["models"]) >= 1
+        for m in data["models"]:
+            assert "id" in m
+            assert "name" in m
+            assert "provider" in m
+            assert "icon" in m
+            assert "api_key" not in m
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_supports_model_param(client):
+    """验证流式端点接受 model 参数并正常响应。"""
+    async with client.stream(
+        "POST", "/api/chat/stream",
+        json={"message": "你好", "model": "deepseek-v4-flash"},
+        timeout=60.0,
+    ) as resp:
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.headers.get("content-type", "")
+        events = []
+        async for line in resp.aiter_lines():
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+            if len(events) >= 2:
+                break
+        assert len(events) > 0
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_invalid_model_falls_back(client):
+    """验证无效 model ID 回退到默认模型，不报错。"""
+    async with client.stream(
+        "POST", "/api/chat/stream",
+        json={"message": "你好", "model": "nonexistent-model"},
+        timeout=60.0,
+    ) as resp:
+        assert resp.status_code == 200
