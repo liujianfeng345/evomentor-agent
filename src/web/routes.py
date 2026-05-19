@@ -329,3 +329,52 @@ async def delete_memory(memory_id: str):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+# ─── 知识图谱 ────────────────────────────────────────────
+
+@router.get("/api/graph")
+async def get_graph():
+    """返回知识图谱的节点和边。"""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, topic, proficiency, parent_topic FROM user_knowledge_graph WHERE parent_topic != 'preference' ORDER BY proficiency DESC"
+    ).fetchall()
+    conn.close()
+
+    nodes: list[dict] = []
+    edges: list[dict] = []
+    topic_ids: dict[str, int] = {}
+
+    for r in rows:
+        tid = r["id"]
+        topic_ids[r["topic"]] = tid
+        nodes.append({
+            "id": tid,
+            "label": r["topic"],
+            "proficiency": r["proficiency"],
+        })
+        if r["parent_topic"] and r["parent_topic"] != "preference":
+            edges.append({
+                "from": r["parent_topic"],
+                "to": r["topic"],
+            })
+
+    # 为 edges 中的 parent_topic 补充不在列表中的节点
+    for edge in edges:
+        if edge["from"] not in topic_ids:
+            nodes.append({
+                "id": -1,
+                "label": edge["from"],
+                "proficiency": 0,
+            })
+            topic_ids[edge["from"]] = -1
+
+    # 将 edge 的 label 转为 id
+    resolved_edges = []
+    for edge in edges:
+        from_id = topic_ids.get(edge["from"])
+        to_id = topic_ids.get(edge["to"])
+        if from_id is not None and to_id is not None:
+            resolved_edges.append({"from": from_id, "to": to_id})
+
+    return {"nodes": nodes, "edges": resolved_edges}
