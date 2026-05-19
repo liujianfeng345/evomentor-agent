@@ -423,3 +423,15 @@ async def delete_skill(skill_id: int):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+# ─── 反思 ────────────────────────────────────────────────
+
+@router.post("/api/reflect")
+async def trigger_reflect():
+    """手动触发反思。"""
+    try:
+        agent = get_agent()
+        result = await agent.handle_scheduled("reflect")
+        return {"ok": True, "result": result}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
