@@ -229,3 +229,103 @@ async def delete_email(email_id: int):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+# ─── 记忆 ───────────────────────────────────────────────
+
+@router.get("/api/memories")
+async def list_memories(limit: int = 20, offset: int = 0, type: str = "", search: str = ""):
+    """合并 conversations、experiences、agent_decisions 三张表。"""
+    conn = get_connection()
+    items: list[dict] = []
+
+    def _match(text: str) -> bool:
+        return not search or search.lower() in text.lower()
+
+    if not type or type == "conversation":
+        rows = conn.execute(
+            "SELECT id, role, content, topic_tags, intent, created_at FROM conversations ORDER BY created_at DESC LIMIT 500"
+        ).fetchall()
+        for r in rows:
+            text = f"{r['role']}: {r['content'] or ''}"
+            if not _match(text):
+                continue
+            items.append({
+                "id": f"conv_{r['id']}",
+                "type": "conversation",
+                "title": text[:100],
+                "preview": text[:200],
+                "tags": r["topic_tags"] or "[]",
+                "role": r["role"],
+                "intent": r["intent"] or "",
+                "created_at": r["created_at"],
+            })
+
+    if not type or type == "experience":
+        rows = conn.execute(
+            "SELECT id, category, title, content, source, confidence, created_at FROM experiences ORDER BY created_at DESC LIMIT 500"
+        ).fetchall()
+        for r in rows:
+            text = f"{r['category']}: {r['title']} — {r['content'] or ''}"
+            if not _match(text):
+                continue
+            items.append({
+                "id": f"exp_{r['id']}",
+                "type": "experience",
+                "title": r["title"],
+                "preview": text[:200],
+                "category": r["category"],
+                "source": r["source"],
+                "confidence": r["confidence"],
+                "created_at": r["created_at"],
+            })
+
+    if not type or type == "decision":
+        rows = conn.execute(
+            "SELECT id, trigger, tool_calls, reasoning, outcome, created_at FROM agent_decisions ORDER BY created_at DESC LIMIT 500"
+        ).fetchall()
+        for r in rows:
+            text = f"触发: {r['trigger']} | 工具: {r['tool_calls']} | 结果: {(r['outcome'] or '')[:100]}"
+            if not _match(text):
+                continue
+            items.append({
+                "id": f"dec_{r['id']}",
+                "type": "decision",
+                "title": f"决策: {r['trigger']} → {r['tool_calls']}",
+                "preview": text[:200],
+                "trigger_name": r["trigger"],
+                "tool_calls": r["tool_calls"],
+                "reasoning": r["reasoning"],
+                "outcome": r["outcome"],
+                "created_at": r["created_at"],
+            })
+
+    conn.close()
+    items.sort(key=lambda x: x["created_at"] or "", reverse=True)
+    total = len(items)
+    return {"items": items[offset: offset + limit], "total": total}
+
+
+@router.delete("/api/memories/{memory_id}", response_model=DeleteResponse)
+async def delete_memory(memory_id: str):
+    """删除记忆。ID 格式: conv_1 / exp_2 / dec_3。"""
+    conn = get_connection()
+    parts = memory_id.split("_", 1)
+    if len(parts) != 2:
+        conn.close()
+        return JSONResponse({"error": "无效的记忆 ID"}, status_code=400)
+
+    try:
+        prefix, mid = parts[0], int(parts[1])
+    except ValueError:
+        conn.close()
+        return JSONResponse({"error": "无效的记忆 ID"}, status_code=400)
+
+    table_map = {"conv": "conversations", "exp": "experiences", "dec": "agent_decisions"}
+    table = table_map.get(prefix)
+    if not table:
+        conn.close()
+        return JSONResponse({"error": "未知记忆类型"}, status_code=400)
+    conn.execute(f"DELETE FROM {table} WHERE id = ?", (mid,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
