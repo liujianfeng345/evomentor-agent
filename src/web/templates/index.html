@@ -6,79 +6,354 @@
     <title>Evomentor — 个人学习助手</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-               background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex;
-               flex-direction: column; }
-        header { background: #16213e; padding: 16px 24px; border-bottom: 1px solid #0f3460; }
-        header h1 { font-size: 20px; font-weight: 600; }
-        header span { font-size: 13px; color: #888; }
-        #chat { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-        .msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.6; white-space: pre-wrap; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column;
+        }
+        /* Header */
+        header {
+            background: #16213e; padding: 12px 20px; border-bottom: 1px solid #0f3460;
+            display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+        }
+        header h1 { font-size: 18px; font-weight: 600; }
+        header .current-tab { font-size: 13px; color: #e94560; margin-left: 8px; }
+        #toggle-sidebar {
+            background: none; border: 1px solid #0f3460; color: #e0e0e0;
+            font-size: 18px; cursor: pointer; padding: 4px 10px; border-radius: 4px;
+            line-height: 1;
+        }
+        #toggle-sidebar:hover { background: #0f3460; }
+
+        /* 主体 */
+        #main-wrap { display: flex; flex: 1; overflow: hidden; }
+
+        /* 侧边栏 */
+        #sidebar {
+            background: #16213e; border-right: 1px solid #0f3460;
+            width: 48px; flex-shrink: 0; overflow: hidden;
+            transition: width 0.2s ease; display: flex; flex-direction: column; gap: 2px;
+            padding: 8px 0;
+        }
+        #sidebar.open { width: 170px; }
+        #sidebar .tab-btn {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border: none; background: none; color: #aaa;
+            cursor: pointer; font-size: 14px; white-space: nowrap;
+            transition: background 0.15s; text-align: left; width: 100%;
+        }
+        #sidebar .tab-btn:hover { background: #1a1a2e; color: #e0e0e0; }
+        #sidebar .tab-btn.active { background: #0f3460; color: #fff; font-weight: 600; }
+        #sidebar .tab-btn .icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+
+        /* 内容区 */
+        #content { flex: 1; overflow-y: auto; padding: 20px; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* 通用组件 */
+        .toolbar {
+            display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
+        }
+        .toolbar input, .toolbar select, .toolbar button {
+            padding: 8px 12px; border-radius: 6px; border: 1px solid #0f3460;
+            background: #1a1a2e; color: #e0e0e0; font-size: 13px;
+        }
+        .toolbar button {
+            cursor: pointer; background: #e94560; border-color: #e94560; color: #fff; font-weight: 600;
+        }
+        .toolbar button:hover { background: #d63851; }
+        .toolbar button.secondary { background: #0f3460; border-color: #0f3460; }
+
+        .card {
+            background: #16213e; border: 1px solid #0f3460; border-radius: 8px;
+            padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s;
+        }
+        .card:hover { border-color: #e94560; }
+        .card .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .card .card-title { font-weight: 600; font-size: 14px; color: #fff; }
+        .card .card-meta { font-size: 12px; color: #888; margin-top: 4px; }
+        .card .card-preview { font-size: 13px; color: #aaa; margin-top: 6px; line-height: 1.5; }
+        .card .card-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #0f3460; font-size: 13px; line-height: 1.7; }
+        .card.expanded .card-detail { display: block; }
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.github { background: #238636; color: #fff; }
+        .badge.research { background: #1f6feb; color: #fff; }
+        .badge.conversation { background: #0f3460; color: #fff; }
+        .badge.experience { background: #bf8700; color: #fff; }
+        .badge.decision { background: #6e40c9; color: #fff; }
+
+        .delete-btn {
+            background: none; border: none; color: #888; cursor: pointer; font-size: 16px;
+            padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+        }
+        .delete-btn:hover { color: #e94560; background: rgba(233,69,96,0.1); }
+
+        #load-more { display: block; margin: 16px auto; }
+
+        /* Toast */
+        .toast {
+            position: fixed; top: 20px; right: 20px; background: #e94560; color: #fff;
+            padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 999;
+            opacity: 0; transform: translateY(-10px); transition: all 0.3s ease;
+            max-width: 400px;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: #238636; }
+
+        /* 状态图标 */
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+        .status-dot.sent { background: #238636; }
+        .status-dot.pending { background: #bf8700; }
+        .status-dot.failed { background: #e94560; }
+
+        /* 图谱 */
+        #graph-canvas { width: 100%; height: 400px; border: 1px solid #0f3460; border-radius: 8px; }
+
+        /* 进度条 */
+        .prog-bar { height: 6px; background: #1a1a2e; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+        .prog-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .prog-fill.high { background: #238636; }
+        .prog-fill.mid { background: #bf8700; }
+        .prog-fill.low { background: #0f3460; }
+
+        /* 聊天 */
+        #chat-messages { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+        .msg { max-width: 80%; padding: 10px 14px; border-radius: 10px; line-height: 1.6; white-space: pre-wrap; font-size: 14px; }
         .msg.user { align-self: flex-end; background: #0f3460; }
         .msg.assistant { align-self: flex-start; background: #16213e; border: 1px solid #0f3460; }
-        #input-area { display: flex; padding: 16px 24px; gap: 12px; border-top: 1px solid #0f3460; background: #16213e; }
-        #message { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid #0f3460;
-                   background: #1a1a2e; color: #e0e0e0; resize: none; font-size: 14px; }
-        #send { padding: 12px 24px; border: none; border-radius: 8px; background: #e94560;
-                color: white; cursor: pointer; font-weight: 600; }
+        #input-area { display: flex; gap: 10px; }
+        #message { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; resize: none; font-size: 14px; font-family: inherit; }
+        #send { padding: 10px 22px; border: none; border-radius: 8px; background: #e94560; color: #fff; cursor: pointer; font-weight: 600; font-size: 14px; }
         #send:hover { background: #d63851; }
         #send:disabled { opacity: 0.5; cursor: not-allowed; }
-        .loading { color: #888; font-style: italic; padding: 8px 16px; }
+        .loading { color: #888; font-style: italic; }
+
+        /* 邮件 iframe */
+        .email-frame { width: 100%; height: 400px; border: 1px solid #0f3460; border-radius: 8px; background: #fff; }
+
+        /* 确认对话框 */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-box {
+            background: #16213e; border: 1px solid #0f3460; border-radius: 10px;
+            padding: 24px; max-width: 400px; width: 90%;
+        }
+        .modal-box h3 { margin-bottom: 12px; font-size: 16px; }
+        .modal-box p { color: #aaa; font-size: 14px; margin-bottom: 20px; }
+        .modal-box .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
     </style>
 </head>
 <body>
     <header>
-        <h1>Evomentor <span>个人学习助手</span></h1>
+        <button id="toggle-sidebar" title="展开/收起菜单">&#9776;</button>
+        <h1>Evomentor <span class="current-tab" id="current-tab-label"></span></h1>
     </header>
-    <div id="chat"></div>
-    <div id="input-area">
-        <textarea id="message" rows="2" placeholder="输入你的问题... (Enter 发送, Shift+Enter 换行)"></textarea>
-        <button id="send" onclick="sendMessage()">发送</button>
+
+    <div id="main-wrap">
+        <nav id="sidebar">
+            <button class="tab-btn active" data-tab="chat"><span class="icon">&#128172;</span>聊天</button>
+            <button class="tab-btn" data-tab="reports"><span class="icon">&#128196;</span>报告</button>
+            <button class="tab-btn" data-tab="emails"><span class="icon">&#9993;</span>邮件</button>
+            <button class="tab-btn" data-tab="memories"><span class="icon">&#129504;</span>记忆</button>
+            <button class="tab-btn" data-tab="graph"><span class="icon">&#128279;</span>图谱</button>
+            <button class="tab-btn" data-tab="skills"><span class="icon">&#128736;</span>Skills</button>
+        </nav>
+
+        <main id="content">
+            <!-- 聊天 Tab -->
+            <div class="tab-panel active" id="panel-chat">
+                <div id="chat-messages"></div>
+                <div id="input-area">
+                    <textarea id="message" rows="2" placeholder="输入你的问题... (Enter 发送, Shift+Enter 换行)"></textarea>
+                    <button id="send" onclick="sendMessage()">发送</button>
+                </div>
+            </div>
+
+            <!-- 报告 Tab -->
+            <div class="tab-panel" id="panel-reports">
+                <div class="toolbar">
+                    <input type="text" id="report-search" placeholder="搜索报告...">
+                    <select id="report-type-filter">
+                        <option value="">全部类型</option>
+                        <option value="github">GitHub 分析</option>
+                        <option value="research">研究搜索</option>
+                    </select>
+                </div>
+                <div id="report-list"></div>
+                <button class="secondary" id="report-load-more" style="display:none">加载更多</button>
+            </div>
+
+            <!-- 邮件 Tab -->
+            <div class="tab-panel" id="panel-emails">
+                <div class="toolbar">
+                    <span style="font-size:13px;color:#888;">状态：</span>
+                    <button class="secondary status-filter active" data-status="">全部</button>
+                    <button class="secondary status-filter" data-status="sent">已发送</button>
+                    <button class="secondary status-filter" data-status="pending">待发</button>
+                    <button class="secondary status-filter" data-status="failed">失败</button>
+                    <button id="send-all-btn" style="margin-left:auto;">立即发送全部</button>
+                </div>
+                <div id="email-list"></div>
+                <button class="secondary" id="email-load-more" style="display:none">加载更多</button>
+            </div>
+
+            <!-- 记忆 Tab -->
+            <div class="tab-panel" id="panel-memories">
+                <div class="toolbar">
+                    <input type="text" id="memory-search" placeholder="搜索记忆...">
+                    <select id="memory-type-filter">
+                        <option value="">全部类型</option>
+                        <option value="conversation">对话</option>
+                        <option value="experience">经验</option>
+                        <option value="decision">决策</option>
+                    </select>
+                </div>
+                <div id="memory-list"></div>
+                <button class="secondary" id="memory-load-more" style="display:none">加载更多</button>
+            </div>
+
+            <!-- 知识图谱 Tab -->
+            <div class="tab-panel" id="panel-graph">
+                <canvas id="graph-canvas"></canvas>
+                <div id="graph-legend" style="font-size:12px;color:#888;margin:8px 0;">
+                    图例：深绿 = 掌握(5) &nbsp; 浅绿 = 熟练(3-4) &nbsp; 蓝色 = 了解(1-2)
+                </div>
+                <div id="graph-list"></div>
+            </div>
+
+            <!-- Skills Tab -->
+            <div class="tab-panel" id="panel-skills">
+                <div class="toolbar">
+                    <input type="text" id="skill-search" placeholder="搜索 Skill...">
+                </div>
+                <div id="skill-list"></div>
+                <button class="secondary" id="skill-load-more" style="display:none">加载更多</button>
+            </div>
+        </main>
     </div>
-    <script>
-        const chat = document.getElementById('chat');
-        const input = document.getElementById('message');
-        const sendBtn = document.getElementById('send');
 
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
+    <div class="toast" id="toast"></div>
+    <div class="modal-overlay" id="modal" style="display:none;">
+        <div class="modal-box">
+            <h3>确认删除</h3>
+            <p id="modal-msg">确定要删除这条记录吗？此操作不可撤销。</p>
+            <div class="modal-actions">
+                <button class="secondary" id="modal-cancel">取消</button>
+                <button id="modal-confirm">确认删除</button>
+            </div>
+        </div>
+    </div>
 
-        async function sendMessage() {
-            const text = input.value.trim();
-            if (!text) return;
-            addMsg('user', text);
-            input.value = '';
-            sendBtn.disabled = true;
-            const loading = addMsg('assistant', '思考中...', true);
-            try {
-                const resp = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                });
-                const data = await resp.json();
-                loading.remove();
-                addMsg('assistant', data.reply);
-            } catch (e) {
-                loading.remove();
-                addMsg('assistant', '出错了: ' + e.message);
-            }
-            sendBtn.disabled = false;
+<script>
+// ═══ 全局状态 ═══
+const STATE = {
+    sidebarOpen: false,
+    currentTab: 'chat',
+    reports: { offset: 0, items: [], hasMore: true },
+    emails: { offset: 0, items: [], hasMore: true, status: '' },
+    memories: { offset: 0, items: [], hasMore: true, type: '', search: '' },
+    skills: { offset: 0, items: [], hasMore: true },
+};
+
+// ═══ 工具函数 ═══
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+function showToast(msg, ok = false) {
+    const t = $('#toast');
+    t.textContent = msg; t.className = 'toast ' + (ok ? 'success' : '') + ' show';
+    setTimeout(() => { t.classList.remove('show'); }, 2500);
+}
+
+function showModal(msg) {
+    return new Promise(resolve => {
+        $('#modal-msg').textContent = msg;
+        $('#modal').style.display = 'flex';
+        $('#modal-cancel').onclick = () => { $('#modal').style.display = 'none'; resolve(false); };
+        $('#modal-confirm').onclick = () => { $('#modal').style.display = 'none'; resolve(true); };
+    });
+}
+
+async function api(url, opts = {}) {
+    try {
+        const resp = await fetch(url, opts);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${resp.status}`);
         }
+        return await resp.json();
+    } catch (e) {
+        showToast('请求失败: ' + e.message);
+        throw e;
+    }
+}
 
-        function addMsg(role, content, isLoading = false) {
-            const div = document.createElement('div');
-            div.className = 'msg ' + role;
-            div.textContent = content;
-            if (isLoading) div.classList.add('loading');
-            chat.appendChild(div);
-            chat.scrollTop = chat.scrollHeight;
-            return div;
-        }
-    </script>
+function simpleMd(text) {
+    if (!text) return '';
+    let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(?<!!)\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color:#58a6ff;">$1</a>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/\n/g, '<br>');
+    html = html.replace(/(<br>\s*)+/g, '<br>');
+    return html;
+}
+
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + (dateStr.endsWith('Z') ? '' : 'Z'));
+    if (isNaN(d.getTime())) return dateStr;
+    const now = new Date();
+    const mins = Math.floor((now - d) / 60000);
+    if (mins < 1) return '刚刚';
+    if (mins < 60) return mins + '分钟前';
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + '小时前';
+    const days = Math.floor(hours / 24);
+    if (days < 30) return days + '天前';
+    return d.toLocaleDateString('zh-CN');
+}
+
+// ═══ 侧边栏 ═══
+function toggleSidebar() {
+    STATE.sidebarOpen = !STATE.sidebarOpen;
+    $('#sidebar').classList.toggle('open', STATE.sidebarOpen);
+}
+$('#toggle-sidebar').addEventListener('click', toggleSidebar);
+
+function switchTab(name) {
+    STATE.currentTab = name;
+    $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    $$('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+    $('#current-tab-label').textContent = '— ' + ({
+        chat:'聊天', reports:'报告', emails:'邮件', memories:'记忆', graph:'图谱', skills:'Skills'
+    })[name] || '';
+    // 懒加载各 Tab 数据
+    if (name === 'reports' && STATE.reports.items.length === 0) loadReports();
+    if (name === 'emails' && STATE.emails.items.length === 0) loadEmails();
+    if (name === 'memories' && STATE.memories.items.length === 0) loadMemories();
+    if (name === 'graph') loadGraph();
+    if (name === 'skills' && STATE.skills.items.length === 0) loadSkills();
+}
+
+$$('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+</script>
 </body>
 </html>
