@@ -92,7 +92,11 @@ async def get_report(report_id: str):
     if len(parts) != 2:
         conn.close()
         return JSONResponse({"error": "无效的报告 ID"}, status_code=400)
-    prefix, rid = parts[0], int(parts[1])
+    try:
+        prefix, rid = parts[0], int(parts[1])
+    except ValueError:
+        conn.close()
+        return JSONResponse({"error": "无效的报告 ID"}, status_code=400)
 
     if prefix == "github":
         row = conn.execute(
@@ -141,7 +145,11 @@ async def delete_report(report_id: str):
     if len(parts) != 2:
         conn.close()
         return JSONResponse({"error": "无效的报告 ID"}, status_code=400)
-    prefix, rid = parts[0], int(parts[1])
+    try:
+        prefix, rid = parts[0], int(parts[1])
+    except ValueError:
+        conn.close()
+        return JSONResponse({"error": "无效的报告 ID"}, status_code=400)
 
     if prefix == "github":
         conn.execute("DELETE FROM github_analyses WHERE id = ?", (rid,))
