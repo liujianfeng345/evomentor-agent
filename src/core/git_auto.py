@@ -32,30 +32,37 @@ async def commit_and_push() -> str:
         files.append(fp)
 
     message = f"auto: {'; '.join(parts)}"
-
-    project_root = Path(__file__).resolve().parent.parent.parent
+    project_root = str(Path(__file__).resolve().parent.parent.parent)
 
     try:
-        subprocess.run(
-            ["git", "add"] + files,
-            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=str(project_root),
+        _run_git(["git", "add"] + files, project_root)
+
+        # 检查是否有暂存变更需要提交
+        diff_result = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=project_root,
         )
-        subprocess.run(
-            ["git", "commit", "-m", message],
-            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=str(project_root),
-        )
-        subprocess.run(
-            ["git", "push"],
-            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=str(project_root),
-        )
-        result = f"已提交并推送: {message}"
+        if diff_result.returncode != 0:
+            _run_git(["git", "commit", "-m", message], project_root)
+            _run_git(["git", "push"], project_root)
+            result = f"已提交并推送: {message}"
+        else:
+            result = f"文件无变更，跳过提交: {message}"
     except subprocess.CalledProcessError as e:
-        stderr = e.stderr.strip() if e.stderr else str(e)
+        stderr = e.stderr.decode("utf-8", errors="replace").strip() if e.stderr else str(e)
         result = f"Git 操作失败: {stderr}"
     finally:
         _generated_files.clear()
 
     return result
+
+
+def _run_git(args: list[str], project_root: str) -> None:
+    """执行 git 命令，不捕获文本输出（避免 Windows 编码问题）。"""
+    subprocess.run(
+        args,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        cwd=project_root,
+    )
