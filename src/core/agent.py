@@ -3,6 +3,7 @@ import json
 import uuid
 import time
 from src.core.logger import get_logger, truncate
+from src.core.git_auto import commit_and_push
 from src.core.llm import llm
 from src.memory.short_term import ShortTermMemory
 from src.memory.long_term import lts
@@ -91,6 +92,9 @@ class Agent:
             yield {"type": "error", "message": f"处理失败: {str(e)}"}
         finally:
             self._persist_and_clear()
+            result = await commit_and_push()
+            if result:
+                agent_logger.info("[SYSTEM] Git: %s", result)
 
     async def _agent_loop(self, trigger: str, initial_context: str, max_rounds: int, model_id: str = "") -> str:
         """核心循环：思考 → 行动 → 观察，最多 max_rounds 轮。"""
@@ -180,6 +184,9 @@ class Agent:
 
         agent_logger.info("[SYSTEM] 循环结束 session=%s", self.session_id)
         self._persist_and_clear()
+        result = await commit_and_push()
+        if result:
+            agent_logger.info("[SYSTEM] Git: %s", result)
         return final_response
 
     def _persist_and_clear(self):
