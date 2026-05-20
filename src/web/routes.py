@@ -8,6 +8,27 @@ from src.core.agent import Agent
 
 router = APIRouter()
 
+ACTIONS = [
+    {
+        "trigger": "periodic_check",
+        "name": "周期检查",
+        "description": "分析 GitHub 提交、搜索前沿方向、反思对话并准备学习周报",
+        "icon": "🔄",
+    },
+    {
+        "trigger": "reflect",
+        "name": "自我反思",
+        "description": "审视近期对话和分析结果，提炼经验，更新知识图谱",
+        "icon": "🧠",
+    },
+    {
+        "trigger": "send_email",
+        "name": "发送邮件",
+        "description": "合并待发队列中的内容，LLM 润色后发送学习周报",
+        "icon": "✉️",
+    },
+]
+
 # 全局 Agent 实例（应用启动时初始化）
 _agent: Agent | None = None
 
@@ -480,3 +501,12 @@ async def trigger_reflect():
         return {"ok": True, "result": result}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ─── 操作列表 ────────────────────────────────────────────
+
+
+@router.get("/api/actions")
+async def list_actions():
+    """返回可手动触发的操作列表。"""
+    return {"actions": ACTIONS}
