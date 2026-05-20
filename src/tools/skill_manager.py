@@ -1,5 +1,6 @@
 """Skill 管理工具 —— 将稳定的经验转化为可复用的 Skill。"""
 import os
+from src.core.git_auto import record_generation
 import json
 from datetime import datetime
 from src.tools.base import BaseTool, ToolResult
@@ -103,6 +104,8 @@ class SkillManagerTool(BaseTool):
 """
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(content)
+
+            record_generation(filename, f"新增 Skill {name}")
 
             # 注册到数据库
             conn = get_connection()
