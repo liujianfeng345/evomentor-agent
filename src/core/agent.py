@@ -97,12 +97,26 @@ class Agent:
             agent_logger.info("[SYSTEM] 流式触发: %s", trigger)
             self.short_term.add("system", initial)
 
+            text_buffer = ""
             async for event in self._agent_loop_stream(
                 trigger=trigger,
                 initial_context=context,
                 max_rounds=8,
                 model_id=model_id,
             ):
+                if event["type"] == "text":
+                    text_buffer += event["content"]
+                elif event["type"] == "tool_start":
+                    text_buffer = ""  # 工具调用开始，清空中间文本
+                elif event["type"] == "done":
+                    if text_buffer.strip():
+                        title = text_buffer.strip().split("\n")[0][:80]
+                        lts.save_agent_report(
+                            trigger=trigger,
+                            title=title,
+                            content=text_buffer.strip(),
+                            session_id=self.session_id,
+                        )
                 yield event
         except Exception as e:
             yield {"type": "error", "message": f"处理失败: {str(e)}"}
