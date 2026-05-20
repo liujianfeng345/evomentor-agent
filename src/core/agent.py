@@ -70,11 +70,23 @@ class Agent:
         agent_logger.info("[SYSTEM] 定时触发: %s", trigger)
         self.short_term.add("system", initial)
 
-        return await self._agent_loop(
+        result = await self._agent_loop(
             trigger=trigger,
             initial_context=context,
             max_rounds=8,
         )
+
+        # 保存最终摘要为报告
+        if result and result.strip():
+            title = result.strip().split("\n")[0][:80]
+            lts.save_agent_report(
+                trigger=trigger,
+                title=title,
+                content=result.strip(),
+                session_id=self.session_id,
+            )
+
+        return result
 
     async def handle_scheduled_stream(self, trigger: str, model_id: str = ""):
         """流式版 handle_scheduled，返回 async generator，yield SSE 事件 dict。"""
