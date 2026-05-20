@@ -1,11 +1,15 @@
 """Agent 核心循环 —— 感知→思考→行动→观察。"""
 import json
 import uuid
+import time
+from src.core.logger import get_logger, truncate
 from src.core.llm import llm
 from src.memory.short_term import ShortTermMemory
 from src.memory.long_term import lts
 from src.memory.retrieval import retrieve_relevant_context
 from src.tools import ToolRegistry
+
+agent_logger = get_logger("agent")
 
 SYSTEM_PROMPT = """你是 Evomentor，一个能自我进化的个人学习助手。
 
@@ -39,6 +43,7 @@ class Agent:
     async def handle_message(self, user_message: str, model_id: str = "") -> str:
         """被动触发：处理用户消息。"""
         # 感知
+        agent_logger.info("[USER] %s", user_message)
         context = retrieve_relevant_context(user_message)
         self.short_term.add("user", user_message)
 
@@ -60,6 +65,7 @@ class Agent:
         }
 
         initial = prompt_map.get(trigger, f"执行任务：{trigger}")
+        agent_logger.info("[SYSTEM] 定时触发: %s", trigger)
         self.short_term.add("system", initial)
 
         return await self._agent_loop(
@@ -103,6 +109,7 @@ class Agent:
 
             # 记录决策
             tool_calls = response.get("tool_calls", [])
+            agent_logger.info("[LLM] 决定调用: %s", ", ".join([tc["name"] for tc in tool_calls]) if tool_calls else "无（直接回复）")
             lts.log_decision(
                 trigger=trigger,
                 tool_calls=[tc["name"] for tc in tool_calls],
@@ -113,6 +120,7 @@ class Agent:
             # 如果没有 tool_calls，说明 LLM 认为该直接回复
             if not tool_calls:
                 final_response = response["content"]
+                agent_logger.info("[LLM] %s", truncate(final_response))
                 self.short_term.add("assistant", final_response)
                 break
 
@@ -135,15 +143,27 @@ class Agent:
             for tc in tool_calls:
                 tool = self.tools.get(tc["name"])
                 if tool:
-                    result = await tool.execute(**tc["arguments"])
-                    outcomes.append(f"[{tc['name']}] {result.content}")
-                    tool_results.append({
-                        "tool_name": tc["name"],
-                        "content": result.content,
-                        "tool_call_id": tc["id"],
-                    })
-                    if result.metadata:
-                        context += f"\n{tc['name']} 元数据: {result.metadata}"
+                    agent_logger.info("[TOOL] %s 开始执行", tc["name"])
+                    t_start = time.perf_counter()
+                    try:
+                        result = await tool.execute(**tc["arguments"])
+                        elapsed = time.perf_counter() - t_start
+                        agent_logger.info(
+                            "[TOOL] %s 完成 (%.1fs): %s",
+                            tc["name"], elapsed, truncate(result.content),
+                        )
+                        outcomes.append(f"[{tc['name']}] {result.content}")
+                        tool_results.append({
+                            "tool_name": tc["name"],
+                            "content": result.content,
+                            "tool_call_id": tc["id"],
+                        })
+                        if result.metadata:
+                            context += f"\n{tc['name']} 元数据: {result.metadata}"
+                    except Exception as e:
+                        elapsed = time.perf_counter() - t_start
+                        agent_logger.info("[TOOL] %s 失败 (%.1fs): %s", tc["name"], elapsed, str(e))
+                        raise
 
             # 工具执行完毕后再写入 short_term，保证 tool_calls 紧跟 tool 结果（满足 OpenAI API 顺序）
             self.short_term.add_assistant_tool_calls(
@@ -158,6 +178,7 @@ class Agent:
             if outcomes:
                 final_response = "\n".join(outcomes)
 
+        agent_logger.info("[SYSTEM] 循环结束 session=%s", self.session_id)
         self._persist_and_clear()
         return final_response
 
