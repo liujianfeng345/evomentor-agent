@@ -34,6 +34,12 @@ SYSTEM_PROMPT = """你是 Evomentor，一个能自我进化的个人学习助手
 - 当用户询问学术论文、前沿技术时，调用 research 工具
 - 记住：你有可用的工具，不要编造工具不工作或认证失败的借口"""
 
+SCHEDULED_PROMPTS = {
+    "periodic_check": "现在是定时检查。请分析用户的 GitHub 最近提交，搜索前沿方向，反思近期对话并准备学习周报。如果一切正常，最后发送邮件。",
+    "reflect": "现在是自我反思时间。请审视近期的所有对话和分析结果，提炼经验，更新知识图谱，必要时创建 Skill。",
+    "send_email": "请使用 send_email 工具立即发送所有待发邮件。合并待发队列中的内容，润色后发送。",
+}
+
 
 class Agent:
     def __init__(self) -> None:
@@ -60,12 +66,7 @@ class Agent:
         """主动触发：处理定时任务。"""
         context = retrieve_relevant_context(trigger)
 
-        prompt_map = {
-            "periodic_check": "现在是定时检查。请分析用户的 GitHub 最近提交，搜索前沿方向，反思近期对话并准备学习周报。如果一切正常，最后发送邮件。",
-            "reflect": "现在是自我反思时间。请审视近期的所有对话和分析结果，提炼经验，更新知识图谱，必要时创建 Skill。",
-        }
-
-        initial = prompt_map.get(trigger, f"执行任务：{trigger}")
+        initial = SCHEDULED_PROMPTS.get(trigger, f"执行任务：{trigger}")
         agent_logger.info("[SYSTEM] 定时触发: %s", trigger)
         self.short_term.add("system", initial)
 
