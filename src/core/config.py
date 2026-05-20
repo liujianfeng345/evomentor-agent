@@ -63,5 +63,11 @@ class Config:
 
     SKILL_CONFIDENCE_THRESHOLD: float = 0.5
 
+    # 日志
+    LOG_TO_CONSOLE: bool = os.getenv("LOG_TO_CONSOLE", "true").lower() in ("1", "true", "yes")
+    LOG_TO_FILE: bool = os.getenv("LOG_TO_FILE", "true").lower() in ("1", "true", "yes")
+    LOG_DIR: str = os.getenv("LOG_DIR", "logs")
+    LOG_TRUNCATE_LENGTH: int = int(os.getenv("LOG_TRUNCATE_LENGTH", "500"))
+
 
 config = Config()
