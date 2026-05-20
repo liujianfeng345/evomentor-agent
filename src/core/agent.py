@@ -78,13 +78,16 @@ class Agent:
 
         # 保存最终摘要为报告
         if result and result.strip():
-            title = result.strip().split("\n")[0][:80]
-            lts.save_agent_report(
-                trigger=trigger,
-                title=title,
-                content=result.strip(),
-                session_id=self.session_id,
-            )
+            try:
+                title = result.strip().split("\n")[0][:80]
+                lts.save_agent_report(
+                    trigger=trigger,
+                    title=title,
+                    content=result.strip(),
+                    session_id=self.session_id,
+                )
+            except Exception:
+                agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
 
         return result
 
@@ -110,13 +113,16 @@ class Agent:
                     text_buffer = ""  # 工具调用开始，清空中间文本
                 elif event["type"] == "done":
                     if text_buffer.strip():
-                        title = text_buffer.strip().split("\n")[0][:80]
-                        lts.save_agent_report(
-                            trigger=trigger,
-                            title=title,
-                            content=text_buffer.strip(),
-                            session_id=self.session_id,
-                        )
+                        try:
+                            title = text_buffer.strip().split("\n")[0][:80]
+                            lts.save_agent_report(
+                                trigger=trigger,
+                                title=title,
+                                content=text_buffer.strip(),
+                                session_id=self.session_id,
+                            )
+                        except Exception:
+                            agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
                 yield event
         except Exception as e:
             yield {"type": "error", "message": f"处理失败: {str(e)}"}
