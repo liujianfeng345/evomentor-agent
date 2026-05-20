@@ -230,6 +230,7 @@ class Agent:
             # 如果没有 tool_calls，直接结束
             if not tool_calls_buffer:
                 if content_buffer:
+                    agent_logger.info("[LLM] %s", truncate(content_buffer))
                     self.short_term.add("assistant", content_buffer)
                 yield {"type": "done"}
                 return
@@ -240,6 +241,7 @@ class Agent:
 
             # 记录决策
             decision_tool_names = [v["name"] for v in tool_calls_buffer.values()]
+            agent_logger.info("[LLM] 决定调用: %s", ", ".join(decision_tool_names))
             lts.log_decision(
                 trigger=trigger,
                 tool_calls=decision_tool_names,
@@ -267,9 +269,16 @@ class Agent:
 
                 tool = self.tools.get(name)
                 if tool:
+                    agent_logger.info("[TOOL] %s 开始执行", name)
+                    t_start = time.perf_counter()
                     try:
                         args = json.loads(tc_data["arguments"])
                         result = await tool.execute(**args)
+                        elapsed = time.perf_counter() - t_start
+                        agent_logger.info(
+                            "[TOOL] %s 完成 (%.1fs): %s",
+                            name, elapsed, truncate(result.content),
+                        )
                         self.short_term.add_tool_result(
                             name, result.content,
                             tool_call_id=tc_data["id"],
@@ -278,12 +287,15 @@ class Agent:
                             context += f"\n{name} 元数据: {result.metadata}"
                         yield {"type": "tool_step", "name": name, "status": "done"}
                     except (json.JSONDecodeError, Exception) as e:
+                        elapsed = time.perf_counter() - t_start
+                        agent_logger.info("[TOOL] %s 失败 (%.1fs): %s", name, elapsed, str(e))
                         self.short_term.add_tool_result(
                             name, f"执行失败: {e}",
                             tool_call_id=tc_data["id"],
                         )
                         yield {"type": "tool_step", "name": name, "status": "error"}
                 else:
+                    agent_logger.info("[TOOL] %s 失败: 工具未找到", name)
                     self.short_term.add_tool_result(
                         name, "工具未找到",
                         tool_call_id=tc_data["id"],
