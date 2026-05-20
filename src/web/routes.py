@@ -167,7 +167,7 @@ async def list_reports(limit: int = 20, offset: int = 0, type: str = ""):
 async def get_report(report_id: str):
     """获取单条报告详情。ID 格式: github_1 或 research_2。"""
     conn = get_connection()
-    parts = report_id.split("_", 1)
+    parts = report_id.rsplit("_", 1)
     if len(parts) != 2:
         conn.close()
         return JSONResponse({"error": "无效的报告 ID"}, status_code=400)
@@ -236,7 +236,7 @@ async def get_report(report_id: str):
 async def delete_report(report_id: str):
     """删除报告。"""
     conn = get_connection()
-    parts = report_id.split("_", 1)
+    parts = report_id.rsplit("_", 1)
     if len(parts) != 2:
         conn.close()
         return JSONResponse({"error": "无效的报告 ID"}, status_code=400)
@@ -406,7 +406,7 @@ async def list_memories(limit: int = 20, offset: int = 0, type: str = "", search
 async def delete_memory(memory_id: str):
     """删除记忆。ID 格式: conv_1 / exp_2 / dec_3。"""
     conn = get_connection()
-    parts = memory_id.split("_", 1)
+    parts = memory_id.rsplit("_", 1)
     if len(parts) != 2:
         conn.close()
         return JSONResponse({"error": "无效的记忆 ID"}, status_code=400)
