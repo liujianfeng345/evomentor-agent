@@ -38,15 +38,18 @@ async def commit_and_push() -> str:
     try:
         subprocess.run(
             ["git", "add"] + files,
-            check=True, capture_output=True, text=True, cwd=str(project_root),
+            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=str(project_root),
         )
         subprocess.run(
             ["git", "commit", "-m", message],
-            check=True, capture_output=True, text=True, cwd=str(project_root),
+            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=str(project_root),
         )
         subprocess.run(
             ["git", "push"],
-            check=True, capture_output=True, text=True, cwd=str(project_root),
+            check=True, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=str(project_root),
         )
         result = f"已提交并推送: {message}"
     except subprocess.CalledProcessError as e:
