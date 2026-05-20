@@ -53,6 +53,10 @@ class DeleteResponse(BaseModel):
     ok: bool
 
 
+class ActionRequest(BaseModel):
+    trigger: str
+
+
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
     agent = get_agent()
@@ -510,3 +514,28 @@ async def trigger_reflect():
 async def list_actions():
     """返回可手动触发的操作列表。"""
     return {"actions": ACTIONS}
+
+
+@router.post("/api/actions/stream")
+async def actions_stream(req: ActionRequest):
+    """流式执行操作 SSE 端点。"""
+    valid_triggers = {a["trigger"] for a in ACTIONS}
+    if req.trigger not in valid_triggers:
+        return JSONResponse(
+            {"error": f"未知操作: {req.trigger}"}, status_code=400
+        )
+
+    agent = get_agent()
+
+    async def event_generator():
+        async for event in agent.handle_scheduled_stream(req.trigger):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
