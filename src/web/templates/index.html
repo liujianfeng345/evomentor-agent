@@ -956,6 +956,97 @@ document.addEventListener('click', async (e) => {
     showToast('已删除', true);
 });
 
+// ═══ 操作 Tab ═══
+async function loadActions() {
+    try {
+        const data = await api('/api/actions');
+        if (data && data.actions) {
+            renderActionCards(data.actions);
+            STATE.actionsLoaded = true;
+        }
+    } catch (e) {
+        // api() 已处理 toast 提示
+    }
+}
+
+function renderActionCards(actions) {
+    const container = $('#action-cards');
+    if (!container) return;
+    container.innerHTML = '';
+
+    actions.forEach(action => {
+        const card = document.createElement('div');
+        card.className = 'action-card';
+        card.innerHTML = `
+            <div class="action-icon">${action.icon}</div>
+            <div class="action-name">${escapeHtml(action.name)}</div>
+            <div class="action-desc">${escapeHtml(action.description)}</div>
+            <button class="action-trigger" data-trigger="${action.trigger}">执行</button>
+        `;
+        container.appendChild(card);
+    });
+
+    container.querySelectorAll('.action-trigger').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            executeAction(btn.dataset.trigger);
+        });
+    });
+}
+
+async function executeAction(trigger) {
+    // 禁用全部卡片
+    const cards = document.querySelectorAll('.action-card');
+    cards.forEach(c => c.classList.add('running'));
+
+    // 显示流式面板
+    const streamPanel = $('#action-stream');
+    streamPanel.style.display = 'block';
+    streamPanel.innerHTML = '';
+    const streamCtrl = createStreamingPanel(streamPanel);
+
+    try {
+        const resp = await fetch('/api/actions/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trigger: trigger }),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'HTTP ' + resp.status);
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const event = JSON.parse(line.slice(6));
+                        handleSSEEvent(event, streamCtrl);
+                    } catch (e) {
+                        // 忽略 JSON 解析错误
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        streamCtrl.finalize('请求失败: ' + escapeHtml(e.message));
+    }
+
+    cards.forEach(c => c.classList.remove('running'));
+}
+
 // ═══ 反思触发 ═══
 $('#trigger-reflect-btn').addEventListener('click', async () => {
     const btn = $('#trigger-reflect-btn');
