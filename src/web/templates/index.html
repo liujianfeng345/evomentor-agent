@@ -61,6 +61,7 @@
                         <option value="">全部类型</option>
                         <option value="github">GitHub 分析</option>
                         <option value="research">研究搜索</option>
+                        <option value="agent_report">学习周报</option>
                     </select>
                     <button id="trigger-reflect-btn" style="margin-left:auto;">手动反思</button>
                 </div>
@@ -584,7 +585,7 @@ function renderReportList() {
         card.innerHTML = `
             <div class="card-header">
                 <div>
-                    <span class="badge ${item.type}">${item.type === 'github' ? 'GitHub' : '研究'}</span>
+                    <span class="badge ${item.type}">${item.type === 'github' ? 'GitHub' : item.type === 'research' ? '研究' : '周报'}</span>
                     <span class="card-title">${escapeHtml(item.title)}</span>
                     <div class="card-meta">${timeAgo(item.created_at)}</div>
                 </div>
