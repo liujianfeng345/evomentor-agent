@@ -76,6 +76,30 @@ class Agent:
             max_rounds=8,
         )
 
+    async def handle_scheduled_stream(self, trigger: str, model_id: str = ""):
+        """流式版 handle_scheduled，返回 async generator，yield SSE 事件 dict。"""
+        try:
+            context = retrieve_relevant_context(trigger)
+
+            initial = SCHEDULED_PROMPTS.get(trigger, f"执行任务：{trigger}")
+            agent_logger.info("[SYSTEM] 流式触发: %s", trigger)
+            self.short_term.add("system", initial)
+
+            async for event in self._agent_loop_stream(
+                trigger=trigger,
+                initial_context=context,
+                max_rounds=8,
+                model_id=model_id,
+            ):
+                yield event
+        except Exception as e:
+            yield {"type": "error", "message": f"处理失败: {str(e)}"}
+        finally:
+            self._persist_and_clear()
+            result = await commit_and_push()
+            if result:
+                agent_logger.info("[SYSTEM] Git: %s", result)
+
     async def handle_message_stream(self, user_message: str, model_id: str = ""):
         """流式版 handle_message，返回 async generator，yield SSE 事件 dict。"""
         try:
