@@ -3,6 +3,9 @@ import json
 import time
 from openai import OpenAI
 from src.core.config import config
+from src.core.logger import get_logger
+
+llm_logger = get_logger("llm")
 
 
 class LLMClient:
@@ -28,9 +31,11 @@ class LLMClient:
     ) -> dict:
         """发送聊天请求，支持 Tool Calling。失败自动重试 3 次。"""
         client, model_name = self._get_client(model_id)
+        llm_logger.info("[LLM] 调用开始 model=%s", model_name)
         last_error = None
         for attempt in range(config.LLM_MAX_RETRIES):
             try:
+                t_start = time.perf_counter()
                 kwargs = {
                     "model": model_name,
                     "messages": messages,
@@ -40,6 +45,8 @@ class LLMClient:
                     kwargs["tools"] = tools
                     kwargs["tool_choice"] = "auto"
                 response = client.chat.completions.create(**kwargs)
+                elapsed = time.perf_counter() - t_start
+                llm_logger.info("[LLM] 调用完成 (%.1fs)", elapsed)
                 choice = response.choices[0]
                 result = {
                     "content": choice.message.content or "",
@@ -60,6 +67,7 @@ class LLMClient:
                 return result
             except Exception as e:
                 last_error = e
+                llm_logger.info("[LLM] 调用失败 (重试 %d/%d): %s", attempt + 1, config.LLM_MAX_RETRIES, str(e))
                 if attempt < config.LLM_MAX_RETRIES - 1:
                     time.sleep(2 ** attempt)
         raise RuntimeError(f"LLM 调用失败（已重试 {config.LLM_MAX_RETRIES} 次）: {last_error}")
@@ -97,6 +105,7 @@ class LLMClient:
             kwargs["tool_choice"] = "auto"
 
         # 重试仅覆盖初始连接，流开始后不再重试
+        llm_logger.info("[LLM] 流式调用开始 model=%s", model_name)
         last_error = None
         for attempt in range(config.LLM_MAX_RETRIES):
             try:
@@ -104,6 +113,7 @@ class LLMClient:
                 break  # 连接成功，退出重试循环
             except Exception as e:
                 last_error = e
+                llm_logger.info("[LLM] 流式调用失败 (重试 %d/%d): %s", attempt + 1, config.LLM_MAX_RETRIES, str(e))
                 if attempt < config.LLM_MAX_RETRIES - 1:
                     time.sleep(2 ** attempt)
         else:
