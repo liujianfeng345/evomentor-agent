@@ -1,5 +1,8 @@
 """邮件工具 —— 合并待发内容，润色后通过 SMTP 发送。"""
 from src.tools.base import BaseTool, ToolResult
+from datetime import datetime
+from src.core.git_auto import record_generation
+import os
 from src.core.config import config
 from src.core.llm import llm
 from src.db.models import get_connection
@@ -46,6 +49,14 @@ class EmailTool(BaseTool):
 - 纯 HTML，适合邮件客户端阅读"""
 
         response = llm.chat([{"role": "user", "content": polish_prompt}])
+
+        # 保存报告到本地文件
+        os.makedirs("reports", exist_ok=True)
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        report_path = f"reports/weekly-report-{date_str}.html"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(response["content"])
+        record_generation(report_path, f"生成学习周报 {date_str}")
 
         # 3. 发送邮件
         msg = MIMEMultipart("alternative")
