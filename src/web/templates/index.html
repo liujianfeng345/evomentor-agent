@@ -429,17 +429,18 @@ function addChatMsg(role, content, isLoading = false) {
     return div;
 }
 
-function createStreamingMsg() {
+// ═══ 共享流式渲染（聊天 Tab 和操作 Tab 共用） ═══
+function createStreamingPanel(container) {
     const wrapper = document.createElement('div');
     wrapper.className = 'msg assistant';
-    chatMessages.appendChild(wrapper);
+    container.appendChild(wrapper);
 
     let fullText = '';
     let toolDetails = null;
     let toolList = null;
 
     function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        container.scrollTop = container.scrollHeight;
     }
 
     function appendText(chunk) {
@@ -471,7 +472,6 @@ function createStreamingMsg() {
         if (!toolDetails) return;
         const icon = status === 'running' ? '⏳' :
                      status === 'done' ? '✅' : '❌';
-        // 查找已存在的 running 条目并更新
         const existing = toolList.querySelector('.tool-step[data-tool="' + name + '"]');
         if (existing) {
             existing.className = 'tool-step ' + status;
@@ -483,7 +483,6 @@ function createStreamingMsg() {
             step.setAttribute('data-tool', name);
             toolList.appendChild(step);
         }
-        // 仅当 done/error 时更新摘要计数（全部完成时隐藏展开）
         if (status === 'done' || status === 'error') {
             const doneCount = toolList.querySelectorAll('.tool-step.done, .tool-step.error').length;
             const total = toolList.children.length;
@@ -540,6 +539,11 @@ function handleSSEEvent(event, streamCtrl) {
             streamCtrl.finalize(event.message || '未知错误');
             break;
     }
+}
+
+// ═══ 聊天 Tab 流式 ═══
+function createStreamingMsg() {
+    return createStreamingPanel(chatMessages);
 }
 
 // ═══ 报告 Tab ═══
