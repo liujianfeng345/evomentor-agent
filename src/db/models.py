@@ -93,6 +93,15 @@ CREATE TABLE IF NOT EXISTS pending_emails (
     scheduled_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     sent_at DATETIME
 );
+
+CREATE TABLE IF NOT EXISTS agent_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 

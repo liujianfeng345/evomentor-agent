@@ -128,6 +128,16 @@ class LongTermMemory:
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+    def save_agent_report(self, trigger: str, title: str, content: str, session_id: str) -> int:
+        conn = get_connection()
+        cursor = conn.execute(
+            "INSERT INTO agent_reports (trigger, title, content, session_id) VALUES (?, ?, ?, ?)",
+            (trigger, title, content, session_id),
+        )
+        conn.commit()
+        report_id = cursor.lastrowid
+        conn.close()
+        return report_id
 
 
 lts = LongTermMemory()
