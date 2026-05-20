@@ -4,6 +4,9 @@
 # 运行时数据
 data/
 
+# 日志
+logs/
+
 # IDE
 .vscode/
 .idea/
@@ -18,3 +21,7 @@ venv/
 
 # 依赖
 node_modules/
+messages.txt
+log.txt
+error.txt
+test.py
