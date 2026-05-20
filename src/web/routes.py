@@ -144,6 +144,19 @@ async def list_reports(limit: int = 20, offset: int = 0, type: str = ""):
                 "created_at": r["found_at"],
             })
 
+    if not type or type == "agent_report":
+        rows = conn.execute(
+            "SELECT id, trigger, title, content, session_id, created_at FROM agent_reports ORDER BY created_at DESC"
+        ).fetchall()
+        for r in rows:
+            items.append({
+                "id": f"agent_report_{r['id']}",
+                "type": "agent_report",
+                "title": r["title"],
+                "preview": (r["content"] or "")[:200],
+                "created_at": r["created_at"],
+            })
+
     conn.close()
     items.sort(key=lambda x: x["created_at"] or "", reverse=True)
     total = len(items)
@@ -199,6 +212,22 @@ async def get_report(report_id: str):
             "created_at": row["found_at"],
         }
 
+    if prefix == "agent_report":
+        row = conn.execute(
+            "SELECT id, trigger, title, content, session_id, created_at FROM agent_reports WHERE id = ?",
+            (rid,),
+        ).fetchone()
+        conn.close()
+        if not row:
+            return JSONResponse({"error": "报告不存在"}, status_code=404)
+        return {
+            "id": f"agent_report_{row['id']}",
+            "type": "agent_report",
+            "title": row["title"],
+            "content": row["content"] or "",
+            "created_at": row["created_at"],
+        }
+
     conn.close()
     return JSONResponse({"error": "未知报告类型"}, status_code=400)
 
@@ -221,6 +250,8 @@ async def delete_report(report_id: str):
         conn.execute("DELETE FROM github_analyses WHERE id = ?", (rid,))
     elif prefix == "research":
         conn.execute("DELETE FROM research_findings WHERE id = ?", (rid,))
+    elif prefix == "agent_report":
+        conn.execute("DELETE FROM agent_reports WHERE id = ?", (rid,))
     else:
         conn.close()
         return JSONResponse({"error": "未知报告类型"}, status_code=400)
