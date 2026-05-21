@@ -1,12 +1,12 @@
 # Skill: hardcoded-path-credential-leak
 
 ## 触发条件
-当检测到用户代码、配置文件（如 settings.json、.env、config.py、config.ini 等）、脚本、README、Markdown 文档或提交内容中包含硬编码的绝对路径（如 C:/Users/...、C:\Users\...、/home/...、/Users/...）或硬编码的用户名、密码、API 密钥等敏感信息时触发。同时检查是否存在 `<你的用户名>`、`<your-username>`、`<username>` 等占位符但未被替换为实际配置变量的情况。
+当检测到用户代码、配置文件（如 settings.json、.env、config.py、config.ini 等）、脚本、README、Markdown 文档或提交内容中包含硬编码的绝对路径（如 C:/Users/...、C:\Users\...、/home/...、/Users/...）或硬编码的用户名、密码、API 密钥等敏感信息时触发。同时检查是否存在 `<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>` 等占位符但未被替换为实际配置变量或环境变量引用的情况。
 
 ## 行为规则
 ## 1. 检测方法
 - 扫描所有文本文件（包括 .md, .json, .yaml, .py, .sh, .env, config.py, settings.json, config.ini 等），查找以 `C:\Users\`、`C:/Users/`、`/Users/`、`/home/` 开头的绝对路径。
-- 检查是否有 `<你的用户名>`、`<your-username>`、`<username>` 等占位符被直接提交，也检查是否包含真实用户名（如 JohnDoe）。
+- 检查是否有 `<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>` 等占位符被直接提交，也检查是否包含真实用户名（如 JohnDoe）。
 - 使用正则表达式匹配常见用户目录模式：
   - Windows 绝对路径：`[A-Za-z]:\\Users\\[^\\]+`、`[A-Za-z]:/Users/[^/]+` 或通用匹配 `[A-Za-z]:/[^\s"'<>|?*]+`、`[A-Za-z]:\\[^\s"'<>|?*]+`
   - Unix/Linux：`\/home\/[^\/]+` 或 `\/Users\/[^\/]+`
@@ -35,6 +35,6 @@
 - 用户在 settings.json 中硬编码了 Windows 用户名（`<你的用户名>`），存在路径硬编码与用户名泄露的风险。
 
 ## 元数据
-- 版本: 5
-- 创建时间: 2026-05-21T21:09:38.855336
+- 版本: 6
+- 创建时间: 2026-05-21T21:39:56.431003
 - 来源: 自动合并
