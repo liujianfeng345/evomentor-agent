@@ -48,6 +48,15 @@ class VectorStore:
                 })
         return items
 
+    def upsert(self, collection: str, doc_id: str, text: str, metadata: dict | None = None) -> None:
+        """更新或插入向量，避免重复 ID 报错。"""
+        col = self.client.get_collection(name=collection)
+        col.upsert(
+            ids=[doc_id],
+            documents=[text],
+            metadatas=[metadata] if metadata else None,
+        )
+
     def delete(self, collection: str, doc_id: str) -> None:
         col = self.client.get_collection(name=collection)
         col.delete(ids=[doc_id])

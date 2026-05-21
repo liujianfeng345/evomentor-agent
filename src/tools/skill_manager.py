@@ -18,7 +18,7 @@ class SkillManagerTool(BaseTool):
     name = "skill_manager"
     description = "审视长期经验，将高置信度、反复出现的经验转化为可复用的 Skill。"
 
-    def _merge_skill(self, name: str, old_trigger: str, old_rules: str,
+    def _merge_skill(self, old_trigger: str, old_rules: str,
                      new_trigger: str, new_rules: str) -> dict:
         """将新旧 skill 内容发给 LLM 合并，返回合并后的 dict。"""
         prompt = f"""你是 Skill 合并模块。请将以下两个相似的 Skill 合并为一个。
@@ -50,7 +50,11 @@ class SkillManagerTool(BaseTool):
             )
             return data
         except json.JSONDecodeError:
-            return {"trigger_condition": new_trigger, "behavior_rules": new_rules}
+            logger.warning("[SkillManager] LLM 合并 JSON 解析失败，使用简单拼接回退")
+            return {
+                "trigger_condition": f"{old_trigger}\n\n（新增）{new_trigger}",
+                "behavior_rules": f"{old_rules}\n\n（新增）{new_rules}",
+            }
 
     async def execute(self) -> ToolResult:
         # 1. 拉取待评估的经验（未关联 Skill 的经验）
@@ -120,7 +124,11 @@ class SkillManagerTool(BaseTool):
 
             # 向量去重：检查是否与已有 skill 高度相似
             skill_text = f"触发条件: {trigger}\n行为规则: {rules}"
-            similar = vector_store.search("skill_embeddings", skill_text, n_results=1)
+            try:
+                similar = vector_store.search("skill_embeddings", skill_text, n_results=1)
+            except Exception as e:
+                logger.warning("[SkillManager] 向量搜索失败，跳过去重: %s", e)
+                similar = []
             if similar and similar[0].get("distance", 1.0) < 0.15:
                 similar_id = similar[0].get("id", "")
                 logger.info("[SkillManager] 命中相似 skill: %s (distance=%.3f)，执行合并",
@@ -136,7 +144,7 @@ class SkillManagerTool(BaseTool):
 
                 if existing:
                     merged = self._merge_skill(
-                        name, existing["trigger_condition"], existing["behavior_rules"],
+                        existing["trigger_condition"], existing["behavior_rules"],
                         trigger, rules
                     )
                     new_trigger = merged.get("trigger_condition", existing["trigger_condition"])
@@ -162,6 +170,8 @@ class SkillManagerTool(BaseTool):
                     with open(filename, "w", encoding="utf-8") as f:
                         f.write(content)
 
+                    record_generation(filename, f"合并更新 Skill {existing['name']}")
+
                     # 更新数据库
                     conn = get_connection()
                     conn.execute(
@@ -172,13 +182,20 @@ class SkillManagerTool(BaseTool):
                     conn.commit()
                     conn.close()
 
-                    # 更新向量库中的向量
-                    vector_store.add("skill_embeddings", f"skill-{existing['name']}",
-                                     f"触发条件: {new_trigger}\n行为规则: {new_rules}")
+                    # 更新向量库中的向量（upsert 避免重复 ID 报错）
+                    vector_store.upsert("skill_embeddings", f"skill-{existing['name']}",
+                                        f"触发条件: {new_trigger}\n行为规则: {new_rules}")
 
                     created.append(f"{existing['name']} (v{new_version} 合并升级)")
                     logger.info("[SkillManager] 合并完成: %s v%d", existing['name'], new_version)
                     continue
+                else:
+                    logger.warning("[SkillManager] 向量命中 %s 但 DB 无对应记录，清理孤立向量并降级为新建",
+                                   similar_id)
+                    try:
+                        vector_store.delete("skill_embeddings", similar_id)
+                    except Exception:
+                        pass
 
             # 无相似 skill，正常创建
             os.makedirs("skills", exist_ok=True)
