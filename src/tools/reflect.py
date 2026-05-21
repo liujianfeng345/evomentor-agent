@@ -1,10 +1,14 @@
 """反思工具 —— 自我进化的核心。审视短期记忆和决策日志，总结规律，更新知识图谱。"""
 import json
+import logging
+
 from src.tools.base import BaseTool, ToolResult
 from src.core.llm import llm
 from src.memory.short_term import ShortTermMemory
 from src.memory.long_term import lts
 from src.db.vector_store import vector_store
+
+logger = logging.getLogger("evomentor.reflect")
 
 
 class ReflectTool(BaseTool):
@@ -63,6 +67,16 @@ class ReflectTool(BaseTool):
         # 3. 保存经验
         saved_count = 0
         for insight in data.get("insights", []):
+            # 构建用于比对的文本
+            text = f"{insight.get('title', '')}: {insight.get('content', '')}"
+
+            # 向量去重：检查是否与已有经验高度相似
+            similar = vector_store.search("experience_embeddings", text, n_results=1)
+            if similar and similar[0].get("distance", 1.0) < 0.15:
+                logger.info("[Reflect] 跳过重复经验: %s (distance=%.3f)",
+                            insight.get('title', '')[:50], similar[0]["distance"])
+                continue
+
             exp_id = lts.save_experience(
                 category=insight.get("category", "learning_tip"),
                 title=insight.get("title", "未命名"),
@@ -71,7 +85,6 @@ class ReflectTool(BaseTool):
                 confidence=0.5,
             )
             # 同时存入向量库
-            text = f"{insight.get('title', '')}: {insight.get('content', '')}"
             vector_store.add("experience_embeddings", f"exp-{exp_id}", text)
             saved_count += 1
 
