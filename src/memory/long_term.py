@@ -139,5 +139,59 @@ class LongTermMemory:
         conn.close()
         return report_id
 
+    # --- GitHub 分析缓存 ---
+    def get_cached_analysis(self, repo_name: str, commit_sha: str) -> dict | None:
+        """查询已缓存的 commit 分析结果（30 天内有效）。"""
+        conn = get_connection()
+        row = conn.execute(
+            """SELECT * FROM github_analyses
+               WHERE repo_name = ? AND commit_sha = ?
+                 AND analyzed_at > datetime('now', '-30 days')
+               ORDER BY analyzed_at DESC LIMIT 1""",
+            (repo_name, commit_sha),
+        ).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def save_analysis(self, repo_name: str, commit_sha: str, findings: str) -> int:
+        """保存 commit 分析结果到缓存。空 findings 不写入，返回 0。"""
+        if not findings.strip():
+            return 0
+        conn = get_connection()
+        cursor = conn.execute(
+            "INSERT INTO github_analyses (repo_name, commit_sha, findings) VALUES (?, ?, ?)",
+            (repo_name, commit_sha, findings),
+        )
+        conn.commit()
+        analysis_id = cursor.lastrowid
+        conn.close()
+        return analysis_id
+
+    def evict_old_analyses(self, max_keep: int = 1000) -> int:
+        """淘汰过期和超量的分析缓存。返回删除的总条数。"""
+        conn = get_connection()
+        deleted = 0
+
+        # 1. 删除超过 30 天的记录
+        cursor = conn.execute(
+            "DELETE FROM github_analyses WHERE analyzed_at <= datetime('now', '-30 days')"
+        )
+        deleted += cursor.rowcount
+
+        # 2. 超出上限则删除最旧的
+        count = conn.execute("SELECT COUNT(*) FROM github_analyses").fetchone()[0]
+        if count > max_keep:
+            cursor = conn.execute(
+                """DELETE FROM github_analyses WHERE id NOT IN (
+                       SELECT id FROM github_analyses ORDER BY analyzed_at DESC, id DESC LIMIT ?
+                   )""",
+                (max_keep,),
+            )
+            deleted += cursor.rowcount
+
+        conn.commit()
+        conn.close()
+        return deleted
+
 
 lts = LongTermMemory()
