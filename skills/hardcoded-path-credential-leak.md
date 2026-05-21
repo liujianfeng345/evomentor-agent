@@ -5,7 +5,7 @@
 
 ## 行为规则
 ## 1. 检测方法
-- 扫描所有文本文件（包括 .md, .json, .yaml, .py, .sh, .env, config.py, settings.json, config.ini 等），查找以 `C:\Users\`、`C:/Users/`、`/Users/`、`/home/` 开头的绝对路径。
+- 扫描所有文本文件（包括 .md, .json, .yaml, .py, .sh, .env, config.py, settings.json, config.ini 等），查找以 `C:\Users\`、`C:/Users/`、`/Users/`、`/home/` 开头的绝对路径，以及通用模式 `[A-Za-z]:/Users/[^/]+` 或 `C:/Users/<你的用户名>`。
 - 检查是否有 `<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>` 等占位符被直接提交，也检查是否包含真实用户名（如 JohnDoe）。
 - 使用正则表达式匹配常见用户目录模式：
   - Windows 绝对路径：`[A-Za-z]:\\Users\\[^\\]+`、`[A-Za-z]:/Users/[^/]+` 或通用匹配 `[A-Za-z]:/[^\s"'<>|?*]+`、`[A-Za-z]:\\[^\s"'<>|?*]+`
@@ -35,6 +35,6 @@
 - 用户在 settings.json 中硬编码了 Windows 用户名（`<你的用户名>`），存在路径硬编码与用户名泄露的风险。
 
 ## 元数据
-- 版本: 6
-- 创建时间: 2026-05-21T21:39:56.431003
+- 版本: 7
+- 创建时间: 2026-05-21T22:39:34.732760
 - 来源: 自动合并
