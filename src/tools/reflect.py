@@ -71,7 +71,11 @@ class ReflectTool(BaseTool):
             text = f"{insight.get('title', '')}: {insight.get('content', '')}"
 
             # 向量去重：检查是否与已有经验高度相似
-            similar = vector_store.search("experience_embeddings", text, n_results=1)
+            try:
+                similar = vector_store.search("experience_embeddings", text, n_results=1)
+            except Exception as e:
+                logger.warning("[Reflect] 向量搜索失败，跳过本次去重: %s", e)
+                similar = []
             if similar and similar[0].get("distance", 1.0) < 0.15:
                 logger.info("[Reflect] 跳过重复经验: %s (distance=%.3f)",
                             insight.get('title', '')[:50], similar[0]["distance"])
