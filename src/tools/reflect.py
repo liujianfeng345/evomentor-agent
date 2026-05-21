@@ -100,13 +100,6 @@ class ReflectTool(BaseTool):
                 parent=update.get("parent", ""),
             )
 
-        # 5. 压缩短期记忆 —— 保留最近 10 条，其余清除
-        recent = self.memory.get_all()[-10:]
-        self.memory.clear()
-        for m in recent:
-            self.memory.add(m.role, m.content, m.tags, m.intent,
-                           tool_calls=m.tool_calls, tool_call_id=m.tool_call_id)
-
         return ToolResult(
             success=True,
             content=f"反思完成。保存 {saved_count} 条经验，更新 {len(data.get('knowledge_updates', []))} 个知识点。\n摘要: {data.get('summary', '')}",

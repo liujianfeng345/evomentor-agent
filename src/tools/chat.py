@@ -43,10 +43,6 @@ class ChatTool(BaseTool):
         # 解析标签
         tags, intent = self._parse_meta(content)
 
-        # 写入短期记忆
-        self.memory.add("user", message, tags=tags, intent=intent)
-        self.memory.add("assistant", content, tags=tags)
-
         return ToolResult(success=True, content=content, metadata={"tags": tags, "intent": intent})
 
     def _parse_meta(self, content: str) -> tuple[list[str], str]:

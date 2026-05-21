@@ -11,7 +11,8 @@ async def test_chat_tool():
     result = await tool.execute("什么是 Python 装饰器？")
     assert result.success
     assert result.content
-    assert len(mem.get_all()) == 2  # user + assistant
+    # ChatTool 不应直接写入 agent 的 short_term（避免破坏 OpenAI tool_calls 消息顺序）
+    assert len(mem.get_all()) == 0
 
 
 @pytest.mark.asyncio
