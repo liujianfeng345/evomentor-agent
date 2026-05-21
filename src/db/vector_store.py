@@ -19,6 +19,7 @@ class VectorStore:
             "experience_embeddings",
             "code_pattern_embeddings",
             "research_embeddings",
+            "skill_embeddings",
         ]:
             if col_name not in names:
                 self.client.create_collection(name=col_name)
