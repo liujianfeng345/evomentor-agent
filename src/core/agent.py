@@ -322,6 +322,9 @@ class Agent:
                                 "name": tc.function.name or "",
                                 "arguments": "",
                             }
+                        # 流式模式下 id 可能在后续 chunk 才到达，需要更新
+                        if tc.id:
+                            tool_calls_buffer[idx]["id"] = tc.id
                         if tc.function.arguments:
                             tool_calls_buffer[idx]["arguments"] += tc.function.arguments
 
