@@ -8,11 +8,49 @@ from src.core.config import config
 from src.core.llm import llm
 from src.memory.long_term import lts
 from src.db.models import get_connection
+import logging
+from src.db.vector_store import vector_store
+
+logger = logging.getLogger("evomentor.skill_manager")
 
 
 class SkillManagerTool(BaseTool):
     name = "skill_manager"
     description = "审视长期经验，将高置信度、反复出现的经验转化为可复用的 Skill。"
+
+    def _merge_skill(self, name: str, old_trigger: str, old_rules: str,
+                     new_trigger: str, new_rules: str) -> dict:
+        """将新旧 skill 内容发给 LLM 合并，返回合并后的 dict。"""
+        prompt = f"""你是 Skill 合并模块。请将以下两个相似的 Skill 合并为一个。
+
+## 已有 Skill
+- 触发条件: {old_trigger}
+- 行为规则: {old_rules}
+
+## 新候选 Skill
+- 触发条件: {new_trigger}
+- 行为规则: {new_rules}
+
+请合并去重，保留所有有价值的信息，输出 JSON：
+
+```json
+{{
+    "trigger_condition": "合并后的触发条件",
+    "behavior_rules": "合并后的行为规则（Markdown）"
+}}
+```"""
+
+        response = llm.chat([{"role": "user", "content": prompt}])
+        try:
+            data = json.loads(
+                response["content"]
+                .split("```json")[-1].split("```")[0]
+                if "```" in response["content"]
+                else response["content"]
+            )
+            return data
+        except json.JSONDecodeError:
+            return {"trigger_condition": new_trigger, "behavior_rules": new_rules}
 
     async def execute(self) -> ToolResult:
         # 1. 拉取待评估的经验（未关联 Skill 的经验）
@@ -80,14 +118,75 @@ class SkillManagerTool(BaseTool):
             trigger = skill_data.get("trigger_condition", "")
             rules = skill_data.get("behavior_rules", "")
 
-            # 写入 Markdown 文件
+            # 向量去重：检查是否与已有 skill 高度相似
+            skill_text = f"触发条件: {trigger}\n行为规则: {rules}"
+            similar = vector_store.search("skill_embeddings", skill_text, n_results=1)
+            if similar and similar[0].get("distance", 1.0) < 0.15:
+                similar_id = similar[0].get("id", "")
+                logger.info("[SkillManager] 命中相似 skill: %s (distance=%.3f)，执行合并",
+                            similar_id, similar[0]["distance"])
+                # 从 similar_id 中提取 skill name（格式: "skill-{name}"）
+                similar_name = similar_id.replace("skill-", "")
+                # 从数据库读取已有 skill 详情
+                conn = get_connection()
+                existing = conn.execute(
+                    "SELECT * FROM skills WHERE name = ?", (similar_name,)
+                ).fetchone()
+                conn.close()
+
+                if existing:
+                    merged = self._merge_skill(
+                        name, existing["trigger_condition"], existing["behavior_rules"],
+                        trigger, rules
+                    )
+                    new_trigger = merged.get("trigger_condition", existing["trigger_condition"])
+                    new_rules = merged.get("behavior_rules", existing["behavior_rules"])
+                    new_version = existing["version"] + 1
+
+                    # 覆盖写入 skill 文件
+                    os.makedirs("skills", exist_ok=True)
+                    filename = f"skills/{existing['name']}.md"
+                    content = f"""# Skill: {existing['name']}
+
+## 触发条件
+{new_trigger}
+
+## 行为规则
+{new_rules}
+
+## 元数据
+- 版本: {new_version}
+- 创建时间: {datetime.now().isoformat()}
+- 来源: 自动合并
+"""
+                    with open(filename, "w", encoding="utf-8") as f:
+                        f.write(content)
+
+                    # 更新数据库
+                    conn = get_connection()
+                    conn.execute(
+                        """UPDATE skills SET trigger_condition = ?, behavior_rules = ?,
+                           version = ? WHERE id = ?""",
+                        (new_trigger, new_rules, new_version, existing["id"]),
+                    )
+                    conn.commit()
+                    conn.close()
+
+                    # 更新向量库中的向量
+                    vector_store.add("skill_embeddings", f"skill-{existing['name']}",
+                                     f"触发条件: {new_trigger}\n行为规则: {new_rules}")
+
+                    created.append(f"{existing['name']} (v{new_version} 合并升级)")
+                    logger.info("[SkillManager] 合并完成: %s v%d", existing['name'], new_version)
+                    continue
+
+            # 无相似 skill，正常创建
             os.makedirs("skills", exist_ok=True)
             filename = f"skills/{name}.md"
             version = 1
 
-            # 检查已有版本
             if os.path.exists(filename):
-                version = 2  # 简化处理，实际可读取已有版本号
+                version = 2
 
             content = f"""# Skill: {name}
 
@@ -104,6 +203,9 @@ class SkillManagerTool(BaseTool):
 """
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(content)
+
+            # 写入向量库
+            vector_store.add("skill_embeddings", f"skill-{name}", skill_text)
 
             record_generation(filename, f"新增 Skill {name}")
 
