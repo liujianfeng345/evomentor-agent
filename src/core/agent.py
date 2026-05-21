@@ -1,9 +1,11 @@
 """Agent 核心循环 —— 感知→思考→行动→观察。"""
 import json
+import os
 import uuid
 import time
+from datetime import datetime
 from src.core.logger import get_logger, truncate
-from src.core.git_auto import commit_and_push
+from src.core.git_auto import commit_and_push, record_generation
 from src.core.llm import llm
 from src.memory.short_term import ShortTermMemory
 from src.memory.long_term import lts
@@ -39,6 +41,28 @@ SCHEDULED_PROMPTS = {
     "reflect": "现在是自我反思时间。请审视近期的所有对话和分析结果，提炼经验，更新知识图谱，必要时创建 Skill。",
     "send_email": "请使用 send_email 工具立即发送所有待发邮件。合并待发队列中的内容，润色后发送。",
 }
+
+
+def _save_report_file(title: str, content: str, trigger: str, session_id: str) -> None:
+    """将报告保存为 Markdown 文件，失败不抛异常。"""
+    try:
+        os.makedirs("reports", exist_ok=True)
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        safe_title = title[:50].replace("/", "-").replace("\\", "-")
+        filename = f"reports/{date_str}-{trigger}-{session_id}.md"
+        body = (
+            f"# {title}\n\n"
+            f"**触发类型**: {trigger}\n"
+            f"**时间**: {datetime.now().isoformat()}\n"
+            f"**Session**: {session_id}\n\n"
+            f"---\n\n"
+            f"{content}"
+        )
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(body)
+        record_generation(filename, f"生成报告: {safe_title}")
+    except Exception:
+        pass
 
 
 class Agent:
@@ -86,6 +110,12 @@ class Agent:
                     content=result.strip(),
                     session_id=self.session_id,
                 )
+                _save_report_file(
+                    title=title,
+                    content=result.strip(),
+                    trigger=trigger,
+                    session_id=self.session_id,
+                )
             except Exception:
                 agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
 
@@ -119,6 +149,12 @@ class Agent:
                                 trigger=trigger,
                                 title=title,
                                 content=text_buffer.strip(),
+                                session_id=self.session_id,
+                            )
+                            _save_report_file(
+                                title=title,
+                                content=text_buffer.strip(),
+                                trigger=trigger,
                                 session_id=self.session_id,
                             )
                         except Exception:
