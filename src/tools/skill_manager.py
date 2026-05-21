@@ -129,7 +129,7 @@ class SkillManagerTool(BaseTool):
             except Exception as e:
                 logger.warning("[SkillManager] 向量搜索失败，跳过去重: %s", e)
                 similar = []
-            if similar and similar[0].get("distance", 1.0) < 0.15:
+            if similar and similar[0].get("distance", 1.0) < 0.45:
                 similar_id = similar[0].get("id", "")
                 logger.info("[SkillManager] 命中相似 skill: %s (distance=%.3f)，执行合并",
                             similar_id, similar[0]["distance"])

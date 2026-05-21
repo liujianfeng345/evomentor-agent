@@ -76,7 +76,7 @@ class ReflectTool(BaseTool):
             except Exception as e:
                 logger.warning("[Reflect] 向量搜索失败，跳过本次去重: %s", e)
                 similar = []
-            if similar and similar[0].get("distance", 1.0) < 0.15:
+            if similar and similar[0].get("distance", 1.0) < 0.45:
                 logger.info("[Reflect] 跳过重复经验: %s (distance=%.3f)",
                             insight.get('title', '')[:50], similar[0]["distance"])
                 continue
