@@ -291,7 +291,7 @@ class Agent:
         """持久化对话到长期存储，清除短期记忆。"""
         for msg in self.short_term.get_all():
             lts.save_conversation(
-                role=msg.role, content=msg.content,
+                role=msg.role, content=msg.content or "",
                 tags=msg.tags, intent=msg.intent,
                 session_id=self.session_id,
             )
