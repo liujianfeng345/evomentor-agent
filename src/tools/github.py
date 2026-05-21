@@ -67,10 +67,26 @@ class GitHubTool(BaseTool):
             for p in known_patterns:
                 full_report += f"- {p['title']}\n"
 
+        # 淘汰过期和超量的缓存
+        try:
+            lts.evict_old_analyses(max_keep=1000)
+        except Exception:
+            pass
+
         return ToolResult(success=True, content=full_report)
 
     async def _analyze_commit(self, repo_name: str, commit) -> str:
-        """用 LLM 分析单个 commit 的 diff。"""
+        """用 LLM 分析单个 commit 的 diff（优先使用缓存）。"""
+        commit_sha = commit.sha
+
+        # 1. 查缓存
+        try:
+            cached = lts.get_cached_analysis(repo_name, commit_sha)
+            if cached and cached.get("findings"):
+                return cached["findings"]
+        except Exception:
+            pass  # 缓存查询失败，降级走 LLM
+
         files = commit.files
         if not files:
             return ""
@@ -101,7 +117,15 @@ class GitHubTool(BaseTool):
 用中文回复，简洁直接。"""
 
         response = llm.chat([{"role": "user", "content": prompt}])
-        return f"## [{repo_name}] {commit.commit.message[:80]}\n{response['content']}"
+        findings = f"## [{repo_name}] {commit.commit.message[:80]}\n{response['content']}"
+
+        # 2. 写入缓存
+        try:
+            lts.save_analysis(repo_name, commit_sha, findings)
+        except Exception:
+            pass  # 缓存写入失败，不影响主流程
+
+        return findings
 
     def get_parameters_schema(self) -> dict:
         return {
