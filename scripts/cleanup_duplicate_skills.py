@@ -202,6 +202,7 @@ def update_db_skills(clusters: list[list[dict]], merged_results: list[dict]) -> 
 def main():
     parser = argparse.ArgumentParser(description="清理重复 skill 文件")
     parser.add_argument("--dry-run", action="store_true", help="预览模式，不实际修改文件")
+    parser.add_argument("--threshold", type=float, default=0.15, help="相似度阈值（距离，越小越严格，默认 0.15）")
     args = parser.parse_args()
 
     skills_dir = "skills"
@@ -212,7 +213,7 @@ def main():
     skills = read_skills(skills_dir)
     print(f"读取到 {len(skills)} 个 skill 文件")
 
-    clusters = cluster_skills(skills)
+    clusters = cluster_skills(skills, threshold=args.threshold)
     multi_clusters = [c for c in clusters if len(c) > 1]
     single_clusters = [c for c in clusters if len(c) == 1]
     print(f"发现 {len(multi_clusters)} 组重复（共 {sum(len(c) for c in multi_clusters)} 个文件），"
