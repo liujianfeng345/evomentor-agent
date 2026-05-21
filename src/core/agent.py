@@ -62,7 +62,7 @@ def _save_report_file(title: str, content: str, trigger: str, session_id: str) -
             f.write(body)
         record_generation(filename, f"生成报告: {safe_title}")
     except Exception:
-        pass
+        agent_logger.warning("[SYSTEM] 报告文件保存失败", exc_info=True)
 
 
 class Agent:
@@ -118,6 +118,11 @@ class Agent:
                 )
             except Exception:
                 agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
+
+        # 提交报告文件（_agent_loop 内的 commit_and_push 已先执行，此处提交新增的报告文件）
+        commit_result = await commit_and_push()
+        if commit_result:
+            agent_logger.info("[SYSTEM] Git: %s", commit_result)
 
         return result
 
