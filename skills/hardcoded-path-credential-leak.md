@@ -1,7 +1,7 @@
 # Skill: hardcoded-path-credential-leak
 
 ## 触发条件
-当检测到用户提交或修改的代码、配置文件（如 settings.json、.env、config.py、config.ini、*.cfg 等）、脚本、README、Markdown 文档、代码注释或任何文本文件中包含硬编码的 Windows 或 Unix 风格绝对路径（如 C:/Users/...、C:\Users\...、/home/...、/Users/...、/root/...）时触发。同时检查路径中是否包含实际用户名、敏感目录结构、常见系统目录（如 Program Files、Windows）或未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<password>、<your-project-path> 等）。此外，检测代码或文档中是否包含硬编码的用户名、密码、API 密钥等敏感信息，并确认占位符是否被直接提交（未被替换为环境变量引用或动态 API 调用）。
+当检测到用户提交或修改的代码、配置文件（如 settings.json、.env、config.py、config.ini、*.cfg 等）、脚本、README、Markdown 文档、代码注释或任何文本文件中包含硬编码的 Windows 或 Unix 风格绝对路径时触发。具体检测模式包括：Windows 绝对路径（如 C:/Users/...、C:\Users\...、C:/[^\s"'<>|?*]+、C:\[^\s"'<>|?*]+）、Unix/Linux 绝对路径（如 /home/...、/Users/...、/root/...）以及常见系统目录（如 Program Files、Windows）。同时检查路径中是否包含实际用户名、敏感目录结构、未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<password>、<your-project-path>、YOUR_USERNAME 等）。此外，检测代码或文档中是否包含硬编码的用户名、密码、API 密钥等敏感信息，并确认占位符是否被直接提交（未被替换为环境变量引用或动态 API 调用）。
 
 ## 行为规则
 ## 1. 检测方法
@@ -13,21 +13,21 @@
 
 - **检查内容**：
   - 实际用户名（如 JohnDoe、YourName）
-  - 未替换的占位符：`<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>`、`<your-name>`、`<用户名>`、`<password>`、`<your-project-path>` 等
+  - 未替换的占位符：`<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>`、`<your-name>`、`<用户名>`、`<password>`、`<your-project-path>`、`YOUR_USERNAME` 等
 
-- **确认占位符是否被直接提交**：检查是否未被替换为环境变量引用（如 `%USERPROFILE%`、`$HOME`、`${env:USERPROFILE}`）或动态 API 调用（如 `os.path.expanduser()`、`pathlib.Path.home()`）。
+- **确认占位符是否被直接提交**：检查是否未被替换为环境变量引用（如 `%USERPROFILE%`、`$HOME`、`${env:USERPROFILE}`、`${user.home}`）或动态 API 调用（如 `os.path.expanduser()`、`pathlib.Path.home()`）。
 
 - **历史提交扫描**：对 Git 提交历史进行正则搜索，识别上述模式，特别是 .env、settings.json、config.ini 等常见配置文件中的敏感信息（如密码、API 密钥）。
 
 ## 2. 修复建议
 
-- **路径替换**：将所有绝对路径替换为相对路径（如 `./config/`、`./data`、`../data`）或使用环境变量引用，如 `%USERPROFILE%`（Windows）或 `$HOME`、`${env:USERPROFILE}`（Linux/Mac）。
+- **路径替换**：将所有绝对路径替换为相对路径（如 `./config/`、`./data`、`../data`）或使用环境变量引用，如 `%USERPROFILE%`（Windows）或 `$HOME`、`${env:USERPROFILE}`、`${user.home}`（Linux/Mac）。
 
 - **配置文件模板化**：创建配置文件模板（如 `settings.json.example`、`config.template.json`、`.env.example`、`.env.template`、`config.example.yaml`），将实际路径或敏感信息放入 `.gitignore` 中忽略的本地配置文件（如 `settings.json`、`.env`）。
 
 - **动态路径获取**：在代码中使用 `os.path.expanduser()` 或 `pathlib.Path.home()` 等动态获取用户目录的 API，避免硬编码。
 
-- **文档示例规范**：对于文档中的示例路径，使用通用占位符（如 `/path/to/your/project`、`C:/path/to/your/project`、`<your-project-path>`）替代真实路径，并添加说明提醒用户自行替换，避免暴露个人文件夹结构。
+- **文档示例规范**：对于文档中的示例路径，使用通用占位符（如 `/path/to/your/project`、`C:/path/to/your/project`、`<your-project-path>`、`YOUR_USERNAME`）替代真实路径，并添加说明提醒用户自行替换，避免暴露个人文件夹结构。
 
 - **敏感信息管理**：敏感信息（如用户名、密码、密钥）应使用环境变量、`.env` 文件（并加入 `.gitignore`）或配置管理工具（如 Vault）管理。
 
@@ -50,6 +50,6 @@
   - 在脚本中直接写死 `/home/user/project/` 路径，导致其他用户无法直接运行该脚本。
 
 ## 元数据
-- 版本: 13
-- 创建时间: 2026-05-22T18:20:23.531833
+- 版本: 14
+- 创建时间: 2026-05-22T18:50:19.525255
 - 来源: 自动合并
