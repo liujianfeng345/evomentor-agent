@@ -3,6 +3,8 @@
 ## 触发条件
 当检测到用户提交或修改的代码、配置文件（如 settings.json、.env、config.py、config.ini、*.cfg 等）、脚本、README、Markdown 文档、代码注释或任何文本文件中包含硬编码的 Windows 或 Unix 风格绝对路径时触发。具体检测模式包括：Windows 绝对路径（如 C:/Users/...、C:\Users\...、C:/[^\s"'<>|?*]+、C:\[^\s"'<>|?*]+）、Unix/Linux 绝对路径（如 /home/...、/Users/...、/root/...）以及常见系统目录（如 Program Files、Windows）。同时检查路径中是否包含实际用户名、敏感目录结构、未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<password>、<your-project-path>、YOUR_USERNAME 等）。此外，检测代码或文档中是否包含硬编码的用户名、密码、API 密钥等敏感信息，并确认占位符是否被直接提交（未被替换为环境变量引用或动态 API 调用）。
 
+（新增）在用户提交的文档（如 README.md）、配置文件（如 settings.json）或代码中发现包含 Windows 绝对路径（如 C:/Users/...）或 Linux 绝对路径（如 /home/...）的硬编码。
+
 ## 行为规则
 ## 1. 检测方法
 
@@ -49,7 +51,18 @@
   - 用户将 `settings.json` 中的路径硬编码为 `C:/Users/YourName/project/`，提交后暴露了个人用户名。
   - 在脚本中直接写死 `/home/user/project/` 路径，导致其他用户无法直接运行该脚本。
 
+（新增）## 行为规则
+1. **检测方法**：
+   - 扫描所有提交到版本控制的文件（特别是 README.md、settings.json、config 文件等），查找模式如 `C:/Users/`、`/home/`、`/Users/` 等绝对路径。
+   - 识别路径中是否包含用户特定信息（如用户名），这属于敏感信息泄露。
+2. **修复建议**：
+   - 将硬编码的绝对路径替换为相对路径（如 `./data/`）或使用环境变量（如 `%USERPROFILE%` 或 `$HOME`）。
+   - 在文档中使用占位符（如 `<你的用户名>`）替代真实用户名，并在提交前检查是否包含本地路径。
+   - 建议用户将配置文件模板化（如 `config.template.json`），避免将真实路径提交到 VCS。
+3. **相关案例**：
+   - 经验 #143、#138、#92、#80、#72 均涉及 README.md 或 settings.json 中硬编码 Windows 绝对路径导致的安全与可移植性问题。
+
 ## 元数据
-- 版本: 14
-- 创建时间: 2026-05-22T18:50:19.525255
+- 版本: 15
+- 创建时间: 2026-05-22T21:20:28.256218
 - 来源: 自动合并
