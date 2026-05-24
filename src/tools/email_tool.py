@@ -60,7 +60,7 @@ class EmailTool(BaseTool):
 
         # 3. 发送邮件
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Evomentor 学习周报 — {__import__('datetime').datetime.now().strftime('%Y-%m-%d')}"
+        msg["Subject"] = f"Evomentor 学习周报 — {datetime.now().strftime('%Y-%m-%d')}"
         msg["From"] = config.SMTP_USER
         msg["To"] = to
         msg.attach(MIMEText(response["content"], "html", "utf-8"))
