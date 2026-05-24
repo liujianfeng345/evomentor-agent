@@ -44,8 +44,8 @@ class VectorStore:
                 )
 
     def add(self, collection: str, doc_id: str, text: str, metadata: dict | None = None) -> None:
-        """将文本向量化存入指定集合。embedding 由 ChromaDB 内置函数自动生成。"""
-        col = self.client.get_collection(name=collection)
+        """将文本向量化存入指定集合。embedding 由配置的 provider 生成。"""
+        col = self.client.get_collection(name=collection, embedding_function=self.ef)
         col.add(
             ids=[doc_id],
             documents=[text],
@@ -54,7 +54,7 @@ class VectorStore:
 
     def search(self, collection: str, query: str, n_results: int = 5) -> list[dict]:
         """语义检索：返回最相关的文档列表。"""
-        col = self.client.get_collection(name=collection)
+        col = self.client.get_collection(name=collection, embedding_function=self.ef)
         results = col.query(query_texts=[query], n_results=n_results)
         items = []
         if results["ids"] and results["ids"][0]:
@@ -69,7 +69,7 @@ class VectorStore:
 
     def upsert(self, collection: str, doc_id: str, text: str, metadata: dict | None = None) -> None:
         """更新或插入向量，避免重复 ID 报错。"""
-        col = self.client.get_collection(name=collection)
+        col = self.client.get_collection(name=collection, embedding_function=self.ef)
         col.upsert(
             ids=[doc_id],
             documents=[text],
@@ -77,7 +77,7 @@ class VectorStore:
         )
 
     def delete(self, collection: str, doc_id: str) -> None:
-        col = self.client.get_collection(name=collection)
+        col = self.client.get_collection(name=collection, embedding_function=self.ef)
         col.delete(ids=[doc_id])
 
 
