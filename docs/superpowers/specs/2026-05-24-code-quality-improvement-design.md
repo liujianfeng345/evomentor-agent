@@ -61,12 +61,9 @@
 - 一个 Tool 失败时，Agent 循环能继续执行后续轮次
 - 失败的 Tool 有对应日志记录
 
-### 4. safe_title 计算后未使用
+### 4. ~~safe_title 计算后未使用~~（假阳性——已验证无需修复）
 
-**现象**：`agent.py:51` 计算了 `safe_title`（替换 `/` 和 `\`），但第 61 行 `record_generation()` 传入的是原始 `title`。
-
-**修复**：将 `record_generation` 调用处的原始 `title` 改为 `safe_title`。
-- 涉及文件：`src/core/agent.py`（`_save_report_file` 函数，第 61 行）
+**验证结果**：`agent.py:63` 行 `record_generation(filename, f"生成报告: {safe_title}")` 已正确使用 `safe_title`。审查时误判，实际代码无误。
 
 ### 5. 循环导入 hack
 
