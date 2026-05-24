@@ -84,22 +84,33 @@ class EmailTool(BaseTool):
                 start_tls=True,
             )
         except Exception as e:
-            # 标记为失败
+            # 标记为失败（仅更新有 id 的记录，fallback 记录无 id 无需标记）
             conn = get_connection()
             for p in pending:
-                conn.execute(
-                    "UPDATE pending_emails SET status = 'failed' WHERE id = ?", (p["id"],)
-                )
+                if p.get("id") is not None:
+                    conn.execute(
+                        "UPDATE pending_emails SET status = 'failed' WHERE id = ?", (p["id"],)
+                    )
             conn.commit()
             conn.close()
             return ToolResult(success=False, content=f"邮件发送失败: {e}")
 
         # 4. 标记为已发送
         conn = get_connection()
+        has_fallback = False
         for p in pending:
+            if p.get("id") is not None:
+                conn.execute(
+                    "UPDATE pending_emails SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (p["id"],),
+                )
+            else:
+                has_fallback = True
+        # fallback 发送成功后插入一条 sent 记录，确保防重复检查能正确计数
+        if has_fallback:
             conn.execute(
-                "UPDATE pending_emails SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (p["id"],),
+                "INSERT INTO pending_emails (subject, body, status, sent_at) VALUES (?, ?, 'sent', CURRENT_TIMESTAMP)",
+                (pending[0]["subject"], pending[0]["body"]),
             )
         conn.commit()
         conn.close()
