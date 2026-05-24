@@ -61,8 +61,10 @@ class EmailTool(BaseTool):
 
         # 保存报告到本地文件
         os.makedirs("reports", exist_ok=True)
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        report_path = f"reports/weekly-report-{date_str}.html"
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H%M%S")
+        report_path = f"reports/weekly-report-{date_str}-{time_str}.html"
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(response["content"])
         record_generation(report_path, f"生成学习周报 {date_str}")
