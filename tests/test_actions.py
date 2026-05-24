@@ -21,11 +21,12 @@ async def test_actions_endpoint_returns_list(client):
         assert resp.status_code == 200
         data = resp.json()
         assert "actions" in data
-        assert len(data["actions"]) == 3
+        assert len(data["actions"]) == 4
         triggers = [a["trigger"] for a in data["actions"]]
         assert "periodic_check" in triggers
         assert "reflect" in triggers
         assert "send_email" in triggers
+        assert "scheduled_research" in triggers
         for a in data["actions"]:
             assert "trigger" in a
             assert "name" in a
