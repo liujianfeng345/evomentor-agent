@@ -5,6 +5,8 @@
 
 （新增）当分析用户提交的代码或文档（如 README.md、settings.json）时，检测到包含 Windows 绝对路径模式（如 C:/Users/...、C:\Users\...）
 
+（新增）当分析用户提交的代码、配置文件或文档（如 README.md）时，检测到包含形如 C:/Users/... 或 /home/user/... 的硬编码绝对路径。
+
 ## 行为规则
 ## 检测方法
 1. 扫描所有文本文件（包括代码、配置文件、Markdown 文档、脚本等）内容，匹配常见绝对路径模式：
@@ -48,7 +50,25 @@
 - 案例2：用户在 settings.json 中硬编码 Windows 用户名，提交到 GitHub 后暴露敏感信息。
 - 案例3：多个提交中反复出现同一类硬编码路径，表明未形成良好的配置管理习惯。
 
+（新增）## 行为规则
+
+### 1. 检测方法
+- 扫描所有文本文件（尤其是 README.md、settings.json、配置文件、脚本），查找包含 `C:/Users/`、`C:\Users\`、`/home/`、`/Users/` 等绝对路径模式的字符串。
+- 特别关注路径中是否包含用户名或用户目录名（如 `<你的用户名>` 或实际用户名）。
+- 使用正则表达式匹配：`[A-Za-z]:\/[Uu]sers\/|\/[Hh]ome\/|\/[Uu]sers\/` 等。
+
+### 2. 修复建议
+- 使用相对路径替代绝对路径，例如 `./config/` 而非 `C:/Users/username/config/`。
+- 使用环境变量（如 `%USERPROFILE%`、`$HOME`、`$USER`）来引用用户目录。
+- 对于配置文件，使用模板文件（如 `config.template.json`）并添加 `.gitignore` 忽略实际配置。
+- 在文档中使用占位符（如 `<your-username>`）并说明用户需替换。
+
+### 3. 相关案例
+- 案例1：用户 README.md 中出现 `C:/Users/<你的用户名>/projects/evomentor-agent`，暴露了本地目录结构。
+- 案例2：用户 settings.json 中硬编码 `"path": "C:/Users/JohnDoe/config.json"`，导致敏感信息提交到版本控制。
+- 案例3：用户脚本中使用 `C:\Users\admin\tools`，在其他机器上无法运行。
+
 ## 元数据
-- 版本: 5
-- 创建时间: 2026-05-24T21:57:44.238861
+- 版本: 6
+- 创建时间: 2026-05-24T21:58:13.424889
 - 来源: 自动合并
