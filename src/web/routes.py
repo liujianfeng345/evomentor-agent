@@ -649,7 +649,7 @@ async def update_research_topic(topic_id: int, req: TopicUpdate):
     return {"ok": True, "topic": dict(row)}
 
 
-@router.delete("/api/research/topics/{topic_id}")
+@router.delete("/api/research/topics/{topic_id}", response_model=DeleteResponse)
 async def delete_research_topic(topic_id: int):
     """删除研究主题。"""
     conn = get_connection()
