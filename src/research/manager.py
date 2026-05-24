@@ -144,7 +144,7 @@ class ResearchManager:
 
             if round_num < max_rounds:
                 analysis = await self._analyze(
-                    topic_name, findings, round_num, depth
+                    topic_name, findings, round_num, depth, model_id=model_id
                 )
                 if not analysis.get("continue", True):
                     break
@@ -158,7 +158,7 @@ class ResearchManager:
                     )
 
         research_logger.info("[RESEARCH] [%s] 生成报告", topic_name)
-        return await self._generate_report(topic_name, "\n\n".join(all_findings))
+        return await self._generate_report(topic_name, "\n\n".join(all_findings), model_id=model_id)
 
     # ── 核心管道（流式）──────────────────────────────────
 
@@ -191,7 +191,7 @@ class ResearchManager:
 
             if round_num < max_rounds:
                 analysis = await self._analyze(
-                    topic_name, findings, round_num, depth
+                    topic_name, findings, round_num, depth, model_id=model_id
                 )
                 yield {
                     "type": "analysis",
@@ -211,7 +211,7 @@ class ResearchManager:
                     )
 
         yield {"type": "report_generating", "topic": topic_name}
-        report = await self._generate_report(topic_name, "\n\n".join(all_findings))
+        report = await self._generate_report(topic_name, "\n\n".join(all_findings), model_id=model_id)
         file_path = self._save_and_enqueue(topic_name, report)
         yield {"type": "report_done", "topic": topic_name, "file": file_path}
 
@@ -244,7 +244,8 @@ class ResearchManager:
     # ── LLM 分析 ────────────────────────────────────────
 
     async def _analyze(
-        self, topic: str, findings: str, round_num: int, depth: str
+        self, topic: str, findings: str, round_num: int, depth: str,
+        model_id: str = "",
     ) -> dict:
         """LLM 分析本轮发现，判断是否继续深入。
 
@@ -270,6 +271,7 @@ class ResearchManager:
             response = llm.chat(
                 [{"role": "user", "content": prompt}],
                 temperature=0.3,
+                model_id=model_id,
             )
             content = response.get("content", "{}")
             # 提取 JSON（LLM 可能在前后加了说明文字）
@@ -283,7 +285,7 @@ class ResearchManager:
 
     # ── 报告生成 ────────────────────────────────────────
 
-    async def _generate_report(self, topic: str, all_findings: str) -> str:
+    async def _generate_report(self, topic: str, all_findings: str, model_id: str = "") -> str:
         """LLM 汇总所有轮次发现，生成结构化 Markdown 报告。"""
         prompt = f"""你是一位资深研究分析师。请根据以下所有研究发现，为「{topic}」生成一份结构化的研究报告。
 
@@ -317,6 +319,7 @@ class ResearchManager:
             response = llm.chat(
                 [{"role": "user", "content": prompt}],
                 temperature=0.7,
+                model_id=model_id,
             )
             return response.get("content", f"# {topic} 研究报告\n\n报告生成失败，请重试。")
         except Exception as e:
