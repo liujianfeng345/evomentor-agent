@@ -79,12 +79,19 @@ class Agent:
         self.short_term.add("user", user_message)
 
         # 思考 + 行动 + 观察 循环（最多 5 轮）
-        return await self._agent_loop(
+        result = await self._agent_loop(
             trigger="user_message",
             initial_context=context,
             max_rounds=5,
             model_id=model_id,
         )
+
+        # 提交本轮生成的文件
+        commit_result = await commit_and_push()
+        if commit_result:
+            agent_logger.info("[SYSTEM] Git: %s", commit_result)
+
+        return result
 
     async def handle_scheduled(self, trigger: str) -> str:
         """主动触发：处理定时任务。"""
@@ -124,7 +131,7 @@ class Agent:
             except Exception:
                 agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
 
-        # 提交报告文件（_agent_loop 内的 commit_and_push 已先执行，此处提交新增的报告文件）
+        # 提交本轮生成的全部报告文件
         commit_result = await commit_and_push()
         if commit_result:
             agent_logger.info("[SYSTEM] Git: %s", commit_result)
