@@ -45,6 +45,14 @@ class ResearchTool(BaseTool):
                     "research_insight", f"研究方向: {topic}",
                     full[:500], source="research_tool", confidence=0.6,
                 )
+                # 同时写入 research_findings 表，使 API 可查询
+                lts.save_research_finding(
+                    topic=topic,
+                    source_type="multi",
+                    url="",
+                    summary=full[:500],
+                    relevance_score=0.6,
+                )
 
         return ToolResult(success=True, content=full)
 

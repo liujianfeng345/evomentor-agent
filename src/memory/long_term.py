@@ -151,6 +151,19 @@ class LongTermMemory:
         conn.close()
         return email_id
 
+    def save_research_finding(self, topic: str, source_type: str, url: str,
+                              summary: str, relevance_score: float = 0.5) -> int:
+        """将研究发现写入 research_findings 表。"""
+        conn = get_connection()
+        cursor = conn.execute(
+            "INSERT INTO research_findings (topic, source_type, url, summary, relevance_score) VALUES (?, ?, ?, ?, ?)",
+            (topic, source_type, url, summary, relevance_score),
+        )
+        conn.commit()
+        finding_id = cursor.lastrowid
+        conn.close()
+        return finding_id
+
     # --- GitHub 分析缓存 ---
     def get_cached_analysis(self, repo_name: str, commit_sha: str) -> dict | None:
         """查询已缓存的 commit 分析结果（30 天内有效）。"""
