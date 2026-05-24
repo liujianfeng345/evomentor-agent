@@ -275,7 +275,13 @@ class Agent:
                     except Exception as e:
                         elapsed = time.perf_counter() - t_start
                         agent_logger.info("[TOOL] %s 失败 (%.1fs): %s", tc["name"], elapsed, str(e))
-                        raise
+                        error_msg = f"执行失败: {str(e)}"
+                        outcomes.append(f"[{tc['name']}] {error_msg}")
+                        tool_results.append({
+                            "tool_name": tc["name"],
+                            "content": error_msg,
+                            "tool_call_id": tc["id"],
+                        })
 
             # 工具执行完毕后再写入 short_term，保证 tool_calls 紧跟 tool 结果（满足 OpenAI API 顺序）
             self.short_term.add_assistant_tool_calls(
@@ -292,9 +298,6 @@ class Agent:
 
         agent_logger.info("[SYSTEM] 循环结束 session=%s", self.session_id)
         self._persist_and_clear()
-        result = await commit_and_push()
-        if result:
-            agent_logger.info("[SYSTEM] Git: %s", result)
         return final_response
 
     def _persist_and_clear(self):
