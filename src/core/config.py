@@ -27,6 +27,7 @@ class Config:
 
     # 调度
     IDLE_HOURS_BEFORE_TRIGGER: int = int(os.getenv("IDLE_HOURS_BEFORE_TRIGGER", "6"))
+    RESEARCH_SCHEDULE_HOURS: int = int(os.getenv("RESEARCH_SCHEDULE_HOURS", "24"))
 
     # Agent
     SHORT_TERM_MAX_MESSAGES: int = 50

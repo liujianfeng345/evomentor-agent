@@ -4,11 +4,14 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from src.core.agent import Agent
 from src.core.config import config
+from src.core.logger import get_logger
 from src.memory.long_term import lts
 from src.db.connection import get_connection
+from src.research.manager import ResearchManager
 
 scheduler = AsyncIOScheduler()
 agent = Agent()
+research_logger = get_logger("research")
 
 
 def _last_activity() -> datetime:
@@ -54,6 +57,21 @@ async def send_daily_email() -> None:
     await agent.handle_scheduled("periodic_check")
 
 
+async def scheduled_research() -> None:
+    """定时研究任务：为所有活跃主题生成研究报告并发送邮件。"""
+    manager = ResearchManager()
+    reports = await manager.run_all()
+    if reports:
+        # 所有主题报告已入邮件队列，触发发送
+        from src.tools.email_tool import EmailTool
+        email_tool = EmailTool()
+        result = await email_tool.execute()
+        research_logger.info(
+            "[SCHEDULED] 研究完成: %d 篇报告, 邮件: %s",
+            len(reports), result.content,
+        )
+
+
 def start_scheduler() -> None:
     """启动调度器。"""
     # 每 30 分钟检查一次用户活跃度
@@ -70,6 +88,14 @@ def start_scheduler() -> None:
         IntervalTrigger(hours=24),
         id="daily_reflect",
         name="每日反思",
+        replace_existing=True,
+    )
+    # 每天定时研究报告（间隔24小时）
+    scheduler.add_job(
+        scheduled_research,
+        IntervalTrigger(hours=config.RESEARCH_SCHEDULE_HOURS),
+        id="scheduled_research",
+        name="定时研究报告",
         replace_existing=True,
     )
     scheduler.start()
