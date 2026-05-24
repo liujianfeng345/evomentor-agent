@@ -139,6 +139,18 @@ class LongTermMemory:
         conn.close()
         return report_id
 
+    def enqueue_email(self, subject: str, body: str) -> int:
+        """将邮件内容写入待发队列。"""
+        conn = get_connection()
+        cursor = conn.execute(
+            "INSERT INTO pending_emails (subject, body, status) VALUES (?, ?, 'pending')",
+            (subject, body),
+        )
+        conn.commit()
+        email_id = cursor.lastrowid
+        conn.close()
+        return email_id
+
     # --- GitHub 分析缓存 ---
     def get_cached_analysis(self, repo_name: str, commit_sha: str) -> dict | None:
         """查询已缓存的 commit 分析结果（30 天内有效）。"""

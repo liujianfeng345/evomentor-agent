@@ -29,7 +29,16 @@ class EmailTool(BaseTool):
         conn.close()
 
         if not pending:
-            return ToolResult(success=True, content="没有待发送的邮件。")
+            # 队列为空时，从 agent_reports 表取最新报告作为 fallback
+            conn = get_connection()
+            row = conn.execute(
+                "SELECT title, content FROM agent_reports ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            conn.close()
+            if not row:
+                return ToolResult(success=True, content="没有待发送的邮件，也无可用报告。")
+            # 构造虚拟 pending 列表用于后续流程
+            pending = [{"subject": row["title"], "body": row["content"], "id": None}]
 
         # 2. 合并内容并润色
         parts = [f"## {p['subject']}\n{p['body']}" for p in pending]

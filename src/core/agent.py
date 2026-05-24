@@ -116,6 +116,11 @@ class Agent:
                     trigger=trigger,
                     session_id=self.session_id,
                 )
+                # 自动将报告摘要加入邮件待发队列
+                lts.enqueue_email(
+                    subject=f"Evomentor 学习周报 — {title[:50]}",
+                    body=result.strip(),
+                )
             except Exception:
                 agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
 
@@ -161,6 +166,11 @@ class Agent:
                                 content=text_buffer.strip(),
                                 trigger=trigger,
                                 session_id=self.session_id,
+                            )
+                            # 自动将报告摘要加入邮件待发队列
+                            lts.enqueue_email(
+                                subject=f"Evomentor 学习周报 — {title[:50]}",
+                                body=text_buffer.strip(),
                             )
                         except Exception:
                             agent_logger.warning("[SYSTEM] 保存报告失败", exc_info=True)
