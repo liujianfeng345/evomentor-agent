@@ -3,8 +3,6 @@
 ## 触发条件
 当检测到用户提交或修改的代码、配置文件（如 settings.json、.env、config.py、config.ini、*.cfg 等）、脚本、README、CHANGELOG、Markdown 文档、代码注释或任何文本文件中包含硬编码的 Windows 或 Unix 风格绝对路径时触发。具体检测模式包括：Windows 绝对路径（如 C:/Users/...、C:\Users\...、C:/[^\s"'<>|?*]+、C:\[^\s"'<>|?*]+）、Unix/Linux 绝对路径（如 /home/...、/Users/...、/root/...）以及常见系统目录（如 Program Files、Windows）。同时检查路径中是否包含实际用户名、敏感目录结构、未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<USERNAME>、<password>、<your-project-path>、YOUR_USERNAME 等）。此外，检测代码或文档中是否包含硬编码的用户名、密码、API 密钥等敏感信息，并确认占位符是否被直接提交（未被替换为环境变量引用或动态 API 调用）。排除系统公共路径（如 C:/Windows、/usr/bin、/etc 等）和标准环境变量路径。
 
-（新增）当用户提交的代码或文档（如 README.md、settings.json、配置文件）中出现 Windows 或 Unix 格式的绝对路径（如 C:/Users/、/home/、/Users/ 等），且路径中包含用户名或用户目录结构时触发。
-
 ## 行为规则
 ## 1. 检测方法
 
@@ -12,10 +10,12 @@
   - Windows 绝对路径：`[A-Za-z]:\\Users\\[^\\]+`、`[A-Za-z]:/Users/[^/]+`、`[A-Za-z]:/[^\s"'<>|?*]+`、`[A-Za-z]:\\[^\s"'<>|?*]+`
   - Unix/Linux 绝对路径：`\/home\/[^\/]+`、`\/Users\/[^\/]+`、`\/root\/[^\/]+`
   - 通用系统目录：`[A-Za-z]:/[Users|Program Files|Windows|...]`
+  - 其他常见模式：以盘符（如 C:/、D:/）开头的路径，或 `/[a-z]+/` 等 Unix 绝对路径前缀
 
 - **检查内容**：
   - 实际用户名（如 JohnDoe、YourName）
   - 未替换的占位符：`<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>`、`<your-name>`、`<用户名>`、`<USERNAME>`、`<password>`、`<your-project-path>`、`YOUR_USERNAME` 等
+  - 硬编码的 `~` 或 `$HOME` 展开
 
 - **确认占位符是否被直接提交**：检查是否未被替换为环境变量引用（如 `%USERPROFILE%`、`$HOME`、`${env:USERPROFILE}`、`${user.home}`）或动态 API 调用（如 `os.path.expanduser()`、`pathlib.Path.home()`）。
 
@@ -45,34 +45,19 @@
   - 案例3：用户项目 'evomentor-agent' 的 README.md 中出现 `C:/User/...` 路径，暴露了开发者个人信息和文件结构。
   - 案例4：用户 settings.json 中硬编码 Windows 用户名，导致敏感信息提交到版本控制。
   - 案例5：GitHub 提交中 README.md 出现硬编码绝对路径。
+  - 案例6：用户在 README.md 中写入 `C:/Users/<你的用户名>/projects/evomentor-agent`，提交后暴露了本地目录结构和用户名。
+  - 案例7：用户在 settings.json 中硬编码了 `C:/Users/<你的用户名>/.config`，提交到 GitHub 后导致敏感信息泄露。
+  - 案例8：多个提交中反复出现 `C:/Users/...` 格式的路径，表明用户未意识到该问题的普遍性。
 
 - **其他典型案例**：
   - 用户多次在 README.md 中使用 `C:/Users/<你的用户名>/` 作为示例路径，导致文档泄露本地目录结构。
   - 用户将 `settings.json` 中的路径硬编码为 `C:/Users/YourName/project/`，提交后暴露了个人用户名。
   - 在脚本中直接写死 `/home/user/project/` 路径，导致其他用户无法直接运行该脚本。
+  - 用户脚本中使用了绝对路径 `/home/user/project/config.json`，导致在其他环境无法运行。
 
 - **新手常见模式**：上述案例多次重复出现，表明这是新手常见问题，具有明确的检测和修复模式，应优先提示。
 
-（新增）## 检测方法
-1. 扫描所有提交的文件（尤其是 README.md、配置文件、脚本文件），查找符合以下模式的字符串：
-   - Windows 绝对路径：`[A-Za-z]:\\Users\\[^\\]+` 或 `[A-Za-z]:/Users/[^/]+`
-   - Unix 绝对路径：`/home/[^/]+` 或 `/Users/[^/]+`
-   - 其他常见的用户目录模式：`~` 或 `$HOME` 的硬编码展开
-2. 如果路径中包含常见的用户名占位符（如 `<你的用户名>`、`<username>`、`your-username`），也视为硬编码路径问题。
-3. 对每个匹配到的路径，记录文件名、行号、具体路径内容。
-
-## 修复建议
-1. 将硬编码的绝对路径替换为相对路径（相对于项目根目录）。
-2. 如果路径必须引用用户特定目录，使用环境变量（如 `%USERPROFILE%`、`$HOME`）或配置模板（如 `.env.example`）替代。
-3. 对于 README.md 等文档，使用占位符（如 `<你的用户名>`）并加上注释说明用户需替换。
-4. 将包含敏感路径的配置文件（如 settings.json）从版本控制中排除（添加到 .gitignore），并提供模板文件。
-
-## 相关案例
-- 案例1：用户在 README.md 中写入 `C:/Users/<你的用户名>/projects/evomentor-agent`，提交后暴露了本地目录结构和用户名。
-- 案例2：用户在 settings.json 中硬编码了 `C:/Users/<你的用户名>/.config`，提交到 GitHub 后导致敏感信息泄露。
-- 案例3：多个提交中反复出现 `C:/Users/...` 格式的路径，表明用户未意识到该问题的普遍性。
-
 ## 元数据
-- 版本: 21
-- 创建时间: 2026-05-24T17:58:26.452872
+- 版本: 23
+- 创建时间: 2026-05-24T21:57:05.305248
 - 来源: 自动合并
