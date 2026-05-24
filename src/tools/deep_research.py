@@ -1,7 +1,6 @@
 # src/tools/deep_research.py
 """深度研究工具 —— Agent 可调用此工具对指定主题进行深度研究。"""
 from src.tools.base import BaseTool, ToolResult
-from src.research.manager import ResearchManager
 
 
 class DeepResearchTool(BaseTool):
@@ -23,6 +22,7 @@ class DeepResearchTool(BaseTool):
         if depth not in DEPTH_VALUES:
             depth = "standard"
 
+        from src.research.manager import ResearchManager
         manager = ResearchManager()
 
         if topics.strip():
