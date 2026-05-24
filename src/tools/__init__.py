@@ -6,6 +6,7 @@ from src.tools.research import ResearchTool
 from src.tools.reflect import ReflectTool
 from src.tools.skill_manager import SkillManagerTool
 from src.tools.web_search import WebSearchTool
+from src.tools.deep_research import DeepResearchTool
 
 
 class ToolRegistry:
@@ -18,6 +19,7 @@ class ToolRegistry:
             "reflect": ReflectTool(memory),
             "skill_manager": SkillManagerTool(),
             "web_search": WebSearchTool(),
+            "deep_research": DeepResearchTool(),
         }
 
     def get_schemas(self) -> list[dict]:
