@@ -5,6 +5,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from src.core.agent import Agent
 from src.core.config import config
 from src.memory.long_term import lts
+from src.db.connection import get_connection
 
 scheduler = AsyncIOScheduler()
 agent = Agent()
@@ -12,7 +13,7 @@ agent = Agent()
 
 def _last_activity() -> datetime:
     """获取用户最后一次活跃时间。"""
-    conn = __import__("src.db.models", fromlist=["get_connection"]).get_connection()
+    conn = get_connection()
     row = conn.execute(
         "SELECT created_at FROM conversations WHERE role = 'user' ORDER BY created_at DESC LIMIT 1"
     ).fetchone()
@@ -39,7 +40,7 @@ async def daily_reflect() -> None:
 async def send_daily_email() -> None:
     """每日邮件：每天只发一封，合并所有待发内容。"""
     # 检查今天是否已发送
-    conn = __import__("src.db.models", fromlist=["get_connection"]).get_connection()
+    conn = get_connection()
     today = datetime.now().strftime("%Y-%m-%d")
     row = conn.execute(
         "SELECT COUNT(*) as cnt FROM pending_emails WHERE status = 'sent' AND date(sent_at) = ?",

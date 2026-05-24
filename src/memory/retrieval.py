@@ -1,6 +1,7 @@
 """记忆检索 —— 关键词匹配 + 语义检索，在 Agent 感知阶段使用。"""
 from src.db.vector_store import vector_store
 from src.memory.long_term import lts
+from src.db.connection import get_connection
 
 
 def retrieve_relevant_context(query: str, top_k: int = 5) -> str:
@@ -28,7 +29,7 @@ def retrieve_relevant_context(query: str, top_k: int = 5) -> str:
         ))
 
     # 4. 加载活跃 Skills
-    conn = __import__("src.db.models", fromlist=["get_connection"]).get_connection()
+    conn = get_connection()
     rows = conn.execute(
         "SELECT name, trigger_condition FROM skills WHERE active = 1"
     ).fetchall()
