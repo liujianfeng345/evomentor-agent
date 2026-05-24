@@ -27,6 +27,12 @@ ACTIONS = [
         "description": "合并待发队列中的内容，LLM 润色后发送学习周报",
         "icon": "✉️",
     },
+    {
+        "trigger": "scheduled_research",
+        "name": "研究报告",
+        "description": "为所有活跃研究主题生成深度研究报告，多源搜索并自动发送邮件",
+        "icon": "🔬",
+    },
 ]
 
 # 全局 Agent 实例（应用启动时初始化）
@@ -55,6 +61,24 @@ class DeleteResponse(BaseModel):
 
 class ActionRequest(BaseModel):
     trigger: str
+
+
+class TopicCreate(BaseModel):
+    name: str
+    description: str = ""
+    depth: str = "standard"
+
+
+class TopicUpdate(BaseModel):
+    name: str = ""
+    description: str = ""
+    depth: str = ""
+    status: str = ""
+
+
+class ResearchRequest(BaseModel):
+    topic_ids: list[int] = []
+    model: str = ""
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -536,6 +560,163 @@ async def trigger_reflect():
         return {"ok": True, "result": result}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ─── 研究主题管理 ─────────────────────────────────────────
+
+@router.get("/api/research/topics")
+async def list_research_topics():
+    """获取所有研究主题。"""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM research_topics ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return {"items": [dict(r) for r in rows]}
+
+
+@router.post("/api/research/topics")
+async def create_research_topic(req: TopicCreate):
+    """新增研究主题。"""
+    if not req.name.strip():
+        return JSONResponse({"error": "主题名称不能为空"}, status_code=400)
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO research_topics (name, description, depth) VALUES (?, ?, ?)",
+            (req.name.strip(), req.description.strip(), req.depth),
+        )
+        conn.commit()
+        topic_id = cursor.lastrowid
+        row = conn.execute(
+            "SELECT * FROM research_topics WHERE id = ?", (topic_id,)
+        ).fetchone()
+        conn.close()
+        return {"ok": True, "topic": dict(row)}
+    except Exception as e:
+        conn.close()
+        if "UNIQUE" in str(e):
+            return JSONResponse({"error": "主题名称已存在"}, status_code=409)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.put("/api/research/topics/{topic_id}")
+async def update_research_topic(topic_id: int, req: TopicUpdate):
+    """修改研究主题。"""
+    conn = get_connection()
+    existing = conn.execute(
+        "SELECT * FROM research_topics WHERE id = ?", (topic_id,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        return JSONResponse({"error": "主题不存在"}, status_code=404)
+
+    fields = []
+    values = []
+    if req.name:
+        fields.append("name = ?")
+        values.append(req.name.strip())
+    if req.description:
+        fields.append("description = ?")
+        values.append(req.description.strip())
+    if req.depth:
+        if req.depth not in ("quick", "standard", "deep"):
+            conn.close()
+            return JSONResponse({"error": "无效的深度模式"}, status_code=400)
+        fields.append("depth = ?")
+        values.append(req.depth)
+    if req.status:
+        if req.status not in ("active", "paused"):
+            conn.close()
+            return JSONResponse({"error": "无效的状态值"}, status_code=400)
+        fields.append("status = ?")
+        values.append(req.status)
+    if not fields:
+        conn.close()
+        return JSONResponse({"error": "没有提供需要更新的字段"}, status_code=400)
+
+    fields.append("updated_at = CURRENT_TIMESTAMP")
+    values.append(topic_id)
+    conn.execute(
+        f"UPDATE research_topics SET {', '.join(fields)} WHERE id = ?",
+        values,
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT * FROM research_topics WHERE id = ?", (topic_id,)
+    ).fetchone()
+    conn.close()
+    return {"ok": True, "topic": dict(row)}
+
+
+@router.delete("/api/research/topics/{topic_id}")
+async def delete_research_topic(topic_id: int):
+    """删除研究主题。"""
+    conn = get_connection()
+    existing = conn.execute(
+        "SELECT id FROM research_topics WHERE id = ?", (topic_id,)
+    ).fetchone()
+    if not existing:
+        conn.close()
+        return JSONResponse({"error": "主题不存在"}, status_code=404)
+    conn.execute("DELETE FROM research_topics WHERE id = ?", (topic_id,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+# ─── 研究触发 ────────────────────────────────────────────
+
+@router.post("/api/research/stream")
+async def research_stream(req: ResearchRequest):
+    """流式触发研究 SSE 端点。"""
+    from src.research.manager import ResearchManager
+
+    manager = ResearchManager()
+    topic_ids = req.topic_ids if req.topic_ids else None
+
+    async def event_generator():
+        async for event in manager.run_all_stream(
+            topic_ids=topic_ids, model_id=req.model
+        ):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/api/research/reports")
+async def list_research_reports(limit: int = 20, offset: int = 0):
+    """获取研究报告列表（筛选 trigger 包含 research 的记录）。"""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, trigger, title, content, session_id, created_at "
+        "FROM agent_reports "
+        "WHERE trigger LIKE '%research%' "
+        "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        (limit, offset),
+    ).fetchall()
+    total_row = conn.execute(
+        "SELECT COUNT(*) as cnt FROM agent_reports WHERE trigger LIKE '%research%'"
+    ).fetchone()
+    conn.close()
+    items = [
+        {
+            "id": f"agent_report_{r['id']}",
+            "type": "agent_report",
+            "title": r["title"],
+            "preview": (r["content"] or "")[:200],
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": total_row["cnt"]}
 
 
 # ─── 操作列表 ────────────────────────────────────────────
