@@ -121,6 +121,19 @@ class ResearchManager:
         md_content = await self._research_pipeline(topic, model_id)
         return self._save_and_enqueue(topic["name"], md_content)
 
+    async def run_adhoc(
+        self, topic_name: str, depth: str = "standard",
+        description: str = "", model_id: str = "",
+    ) -> str:
+        """即席研究：为未存入 DB 的临时主题生成报告。
+
+        Returns:
+            报告文件路径
+        """
+        topic = {"name": topic_name, "description": description, "depth": depth}
+        md_content = await self._research_pipeline(topic, model_id)
+        return self._save_and_enqueue(topic_name, md_content)
+
     # ── 核心管道（非流式）────────────────────────────────
 
     async def _research_pipeline(self, topic: dict, model_id: str = "") -> str:

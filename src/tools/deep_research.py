@@ -19,32 +19,34 @@ class DeepResearchTool(BaseTool):
             topics: 研究主题，逗号分隔。留空则使用 DB 中所有活跃主题。
             depth: 研究深度，quick/standard/deep，默认 standard。
         """
-        valid_depths = {"quick", "standard", "deep"}
-        if depth not in valid_depths:
+        DEPTH_VALUES = {"quick", "standard", "deep"}
+        if depth not in DEPTH_VALUES:
             depth = "standard"
 
         manager = ResearchManager()
 
         if topics.strip():
-            # 指定了主题：直接用临时主题执行研究，不走 DB
+            # 指定了主题：通过公开 API 逐主题即席研究，收集全部结果
             topic_list = [t.strip() for t in topics.split(",") if t.strip()]
             reports: list[str] = []
+            errors: list[str] = []
             for t in topic_list:
-                # 构造临时主题 dict
-                topic = {"name": t, "description": "", "depth": depth}
                 try:
-                    md_content = await manager._research_pipeline(topic)
-                    path = manager._save_and_enqueue(t["name"], md_content)
+                    path = await manager.run_adhoc(t, depth=depth)
                     reports.append(path)
                 except Exception as e:
-                    return ToolResult(
-                        success=False,
-                        content=f"主题「{t}」研究失败: {str(e)}",
-                    )
+                    errors.append(f"主题「{t}」研究失败: {str(e)}")
+
+            lines = []
+            if reports:
+                lines.append(f"已完成 {len(reports)} 个主题的研究，报告已保存：")
+                lines.extend(f"- {r}" for r in reports)
+            if errors:
+                lines.append(f"{len(errors)} 个主题失败：")
+                lines.extend(f"- {e}" for e in errors)
             return ToolResult(
-                success=True,
-                content=f"已完成 {len(reports)} 个主题的研究，报告已保存。\n\n"
-                + "\n".join(f"- {r}" for r in reports),
+                success=len(errors) == 0,
+                content="\n".join(lines),
             )
         else:
             # 未指定主题：从 DB 读取活跃主题
@@ -52,7 +54,8 @@ class DeepResearchTool(BaseTool):
             if not report_paths:
                 return ToolResult(
                     success=True,
-                    content="当前没有活跃的研究主题。请在研究主题管理中先添加主题。",
+                    content="当前没有活跃的研究主题，或所有主题研究均失败。"
+                    "请在研究主题管理中检查主题状态。",
                 )
             return ToolResult(
                 success=True,
