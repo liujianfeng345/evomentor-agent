@@ -69,5 +69,8 @@ class Config:
     LOG_DIR: str = os.getenv("LOG_DIR", "logs")
     LOG_TRUNCATE_LENGTH: int = int(os.getenv("LOG_TRUNCATE_LENGTH", "500"))
 
+    # Embedding
+    EMBEDDING_PROVIDER: str = os.getenv("EMBEDDING_PROVIDER", "chromadb")
+
 
 config = Config()

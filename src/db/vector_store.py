@@ -1,11 +1,27 @@
 """ChromaDB 封装 —— 统一管理 embedding 的存储和检索。"""
 import chromadb
 from chromadb.config import Settings
+from chromadb.utils import embedding_functions
 from src.core.config import config
+
+
+def _get_embedding_function():
+    """根据配置返回对应的 embedding function。"""
+    if config.EMBEDDING_PROVIDER == "deepseek":
+        from src.core.llm import llm
+
+        class DeepSeekEmbeddingFunction(embedding_functions.EmbeddingFunction):
+            def __call__(self, input):
+                return [llm.embed(text) for text in input]
+
+        return DeepSeekEmbeddingFunction()
+    # chromadb（默认）：使用内置 ONNX 模型
+    return embedding_functions.DefaultEmbeddingFunction()
 
 
 class VectorStore:
     def __init__(self) -> None:
+        self.ef = _get_embedding_function()
         self.client = chromadb.PersistentClient(
             path=config.CHROMA_PATH,
             settings=Settings(anonymized_telemetry=False),
@@ -22,7 +38,10 @@ class VectorStore:
             "skill_embeddings",
         ]:
             if col_name not in names:
-                self.client.create_collection(name=col_name)
+                self.client.create_collection(
+                    name=col_name,
+                    embedding_function=self.ef,
+                )
 
     def add(self, collection: str, doc_id: str, text: str, metadata: dict | None = None) -> None:
         """将文本向量化存入指定集合。embedding 由 ChromaDB 内置函数自动生成。"""
