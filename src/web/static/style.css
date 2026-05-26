@@ -60,8 +60,8 @@ header .current-tab { font-size: 13px; color: #6366f1; margin-left: 8px; }
     transition: background 0.15s;
 }
 .toolbar button:hover { background: #4f46e5; }
-.toolbar button.secondary, .graph-toolbar button.secondary { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
-.toolbar button.secondary:hover, .graph-toolbar button.secondary:hover { background: #e2e8f0; }
+.toolbar button.secondary { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
+.toolbar button.secondary:hover { background: #e2e8f0; }
 
 /* ═══ 6. Card ═══ */
 .card {
@@ -238,7 +238,7 @@ header .current-tab { font-size: 13px; color: #6366f1; margin-left: 8px; }
 .collapse-body {
     padding: 4px 0 4px 8px;
 }
-.collapse-group.collapsed .collapse-body {
+.collapse-body.collapsed {
     display: none;
 }
 .collapse-group.collapsed .arrow {
