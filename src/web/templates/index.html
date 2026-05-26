@@ -255,6 +255,14 @@ function timeAgo(dateStr) {
     return d.toLocaleDateString('zh-CN');
 }
 
+function debounce(fn, ms) {
+    let timer;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+}
+
 // ═══ 侧边栏 ═══
 function toggleSidebar() {
     STATE.sidebarOpen = !STATE.sidebarOpen;
@@ -801,79 +809,222 @@ document.addEventListener('click', async (e) => {
 });
 
 // ═══ 知识图谱 Tab ═══
+let graphData = { nodes: [], edges: [], groups: [] };
+let graphSimulation = null;
+let graphColor = null;
+
 async function loadGraph() {
-    const data = await api('/api/graph');
-    drawGraph(data.nodes, data.edges);
+    const search = $('#graph-search').value || '';
+    const parent = $('#graph-category').value || '';
+    const minLevel = parseInt($('#graph-level').value) || 0;
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (parent) params.set('parent', parent);
+    if (minLevel > 0) params.set('min_level', minLevel);
+
+    const url = '/api/graph' + (params.toString() ? '?' + params.toString() : '');
+    const data = await api(url);
+    graphData = data;
+    updateCategorySelect(data.groups);
+    drawGraph(data);
+    renderLegend(data.groups);
     renderGraphList(data.nodes);
 }
 
-function drawGraph(nodes, edges) {
-    const canvas = $('#graph-canvas');
-    const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = 400 * dpr;
-    ctx.scale(dpr, dpr);
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = '400px';
+function updateCategorySelect(groups) {
+    const sel = $('#graph-category');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">全部分类</option>';
+    groups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.textContent = g;
+        sel.appendChild(opt);
+    });
+    sel.value = current;
+}
 
-    const w = rect.width;
-    const h = 400;
-    ctx.clearRect(0, 0, w, h);
+function drawGraph(data) {
+    const container = $('#graph-svg-container');
+    container.innerHTML = '';
 
-    if (nodes.length === 0) {
-        ctx.fillStyle = '#888';
-        ctx.font = '14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('暂无知识图谱数据', w / 2, h / 2);
+    if (data.nodes.length === 0) {
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;">暂无匹配的知识图谱数据</div>';
         return;
     }
 
-    // 简单圆形布局
-    const cx = w / 2, cy = h / 2;
-    const radius = Math.min(w, h) / 2 - 60;
-    const nodePositions = {};
+    const rect = container.getBoundingClientRect();
+    const w = rect.width;
+    const h = 500;
 
-    nodes.forEach((node, i) => {
-        const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
-        const x = cx + radius * Math.cos(angle);
-        const y = cy + radius * Math.sin(angle);
-        nodePositions[node.id] = { x, y };
-    });
+    const svg = d3.select('#graph-svg-container')
+        .append('svg')
+        .attr('width', w)
+        .attr('height', h);
+
+    const g = svg.append('g');
+
+    // 缩放平移
+    const zoom = d3.zoom()
+        .scaleExtent([0.15, 5])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
+    svg.call(zoom);
+
+    // 颜色映射
+    graphColor = d3.scaleOrdinal(d3.schemeCategory10).domain(data.groups);
+
+    // 力模拟
+    const simulation = d3.forceSimulation(data.nodes)
+        .force('link', d3.forceLink(data.edges).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-350))
+        .force('center', d3.forceCenter(w / 2, h / 2))
+        .force('collide', d3.forceCollide().radius(d => (d.proficiency || 0) * 5 + 18));
+
+    graphSimulation = simulation;
 
     // 绘制边
-    edges.forEach(edge => {
-        const from = nodePositions[edge.from];
-        const to = nodePositions[edge.to];
-        if (!from || !to) return;
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.strokeStyle = '#0f3460';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-    });
+    const link = g.append('g')
+        .attr('stroke', '#444')
+        .attr('stroke-opacity', 0.5)
+        .attr('stroke-width', 1.2)
+        .selectAll('line')
+        .data(data.edges)
+        .join('line');
 
     // 绘制节点
-    nodes.forEach(node => {
-        const pos = nodePositions[node.id];
-        if (!pos) return;
-        const size = 12 + node.proficiency * 4;
-        const colors = ['#0f3460', '#1f6feb', '#bf8700', '#238636', '#238636', '#238636'];
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, size, 0, 2 * Math.PI);
-        ctx.fillStyle = colors[Math.min(node.proficiency, 5)] || '#0f3460';
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+    const node = g.append('g')
+        .selectAll('circle')
+        .data(data.nodes)
+        .join('circle')
+        .attr('r', d => d.is_category ? 6 : 8 + (d.proficiency || 0) * 5)
+        .attr('fill', d => d.is_category ? '#555' : graphColor(d.group))
+        .attr('stroke', d => d.is_category ? '#666' : '#fff')
+        .attr('stroke-width', d => d.is_category ? 1 : 1.5)
+        .attr('stroke-dasharray', d => d.is_category ? '4 2' : 'none')
+        .attr('cursor', 'pointer')
+        .call(drag(simulation));
 
-        ctx.fillStyle = '#e0e0e0';
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(node.label, pos.x, pos.y + size + 14);
+    // 标签（默认隐藏，hover 显示）
+    const label = g.append('g')
+        .selectAll('text')
+        .data(data.nodes)
+        .join('text')
+        .text(d => d.label)
+        .attr('font-size', 10)
+        .attr('fill', '#aaa')
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.is_category ? -10 : -(d.proficiency || 0) * 5 - 14)
+        .style('display', 'none')
+        .style('pointer-events', 'none');
+
+    // Tooltip
+    const tooltip = d3.select('#graph-tooltip');
+
+    node.on('mouseenter', (event, d) => {
+        label.filter(l => l.id === d.id).style('display', 'block');
+        tooltip.style('display', 'block')
+            .html(`<strong>${d.label}</strong><br>熟练度: ${d.proficiency || '-'}/5<br>分类: ${d.group || '未分类'}`)
+            .style('left', (event.pageX + 12) + 'px')
+            .style('top', (event.pageY - 12) + 'px');
     });
+    node.on('mousemove', (event) => {
+        tooltip.style('left', (event.pageX + 12) + 'px')
+            .style('top', (event.pageY - 12) + 'px');
+    });
+    node.on('mouseleave', (event, d) => {
+        label.filter(l => l.id === d.id).style('display', 'none');
+        tooltip.style('display', 'none');
+    });
+
+    // 点击节点: 高亮关联节点
+    node.on('click', (event, d) => {
+        const connectedIds = new Set();
+        connectedIds.add(d.id);
+        data.edges.forEach(e => {
+            if (e.from === d.id) connectedIds.add(e.to);
+            if (e.to === d.id) connectedIds.add(e.from);
+        });
+        node.attr('opacity', n => connectedIds.has(n.id) ? 1 : 0.15);
+        link.attr('opacity', e => (e.from === d.id || e.to === d.id) ? 1 : 0.05);
+        label.style('display', n => connectedIds.has(n.id) ? 'block' : 'none');
+
+        // 点击空白处恢复
+        svg.on('click', (evt) => {
+            if (evt.target === svg.node()) {
+                node.attr('opacity', 1);
+                link.attr('opacity', 0.5);
+                label.style('display', 'none');
+                svg.on('click', null);
+            }
+        });
+    });
+
+    // Tick 更新位置
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+        label
+            .attr('x', d => d.x)
+            .attr('y', d => d.y);
+    });
+
+    // 拖拽函数
+    function drag(sim) {
+        function dragstarted(event) {
+            if (!event.active) sim.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+        function dragended(event) {
+            if (!event.active) sim.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+        return d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended);
+    }
+}
+
+function renderLegend(groups) {
+    const container = $('#graph-legend');
+    if (!groups || groups.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '';
+    groups.forEach(g => {
+        const color = graphColor(g);
+        html += `<div class="legend-item" data-group="${escapeHtml(g)}" onclick="toggleLegendGroup(this)" title="点击切换显隐">
+            <span class="legend-color" style="background:${color}"></span>
+            ${escapeHtml(g)}
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function toggleLegendGroup(el) {
+    el.classList.toggle('hidden');
+    const group = el.dataset.group;
+    const hidden = el.classList.contains('hidden');
+    if (graphSimulation) {
+        d3.selectAll('#graph-svg-container circle')
+            .filter(d => d.group === group && !d.is_category)
+            .attr('opacity', hidden ? 0.15 : 1);
+    }
 }
 
 function renderGraphList(nodes) {
@@ -895,8 +1046,19 @@ function renderGraphList(nodes) {
     });
 }
 
-window.addEventListener('resize', () => {
-    if (STATE.currentTab === 'graph') loadGraph();
+// 图谱控制栏事件
+$('#graph-search').addEventListener('input', debounce(loadGraph, 300));
+$('#graph-category').addEventListener('change', loadGraph);
+$('#graph-level').addEventListener('input', function() {
+    $('#level-val').textContent = this.value;
+    loadGraph();
+});
+$('#graph-reset').addEventListener('click', function() {
+    $('#graph-search').value = '';
+    $('#graph-category').value = '';
+    $('#graph-level').value = 0;
+    $('#level-val').textContent = '0';
+    loadGraph();
 });
 
 // ═══ Skills Tab ═══
