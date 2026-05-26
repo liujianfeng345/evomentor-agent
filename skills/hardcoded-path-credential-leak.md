@@ -1,14 +1,14 @@
 # Skill: hardcoded-path-credential-leak
 
 ## 触发条件
-当检测到用户提交或修改的任意文本文件（包括代码、配置文件如 settings.json、.env、config.py、config.ini、*.cfg 等、脚本、README、CHANGELOG、Markdown 文档、代码注释或任何文本文件）中包含硬编码的 Windows 或 Unix/Linux 风格绝对路径，或硬编码的用户名、密码、API 密钥等敏感信息时触发。具体检测模式包括：Windows 绝对路径（如 C:/Users/...、C:\Users\...、C:/[^\s"'<>|?*]+、C:\[^\s"'<>|?*]+）、Unix/Linux 绝对路径（如 /home/...、/Users/...、/root/...）以及常见系统目录（如 Program Files、Windows）。同时检查路径中是否包含实际用户名、敏感目录结构、未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<USERNAME>、<password>、<your-project-path>、YOUR_USERNAME 等）。排除系统公共路径（如 C:/Windows、/usr/bin、/etc 等）和标准环境变量路径。特别关注 README.md、settings.json、config.*、.env、*.ini、*.yaml、*.yml、Dockerfile、docker-compose.yml、.bat、.ps1、.sh 等文件。
+当检测到用户提交或修改的任意文本文件（包括代码、配置文件如 settings.json、.env、config.py、config.ini、*.cfg、*.yaml、*.yml、Dockerfile、docker-compose.yml、*.bat、*.ps1、*.sh 等、脚本、README、CHANGELOG、Markdown 文档、代码注释或任何文本文件）中包含硬编码的 Windows 或 Unix/Linux 风格绝对路径，或硬编码的用户名、密码、API 密钥等敏感信息时触发。具体检测模式包括：Windows 绝对路径（如 C:/Users/...、C:\Users\...、C:/[^\s"'<>|?*]+、C:\[^\s"'<>|?*]+）、Unix/Linux 绝对路径（如 /home/...、/Users/...、/root/...）以及常见系统目录（如 Program Files、Windows）。同时检查路径中是否包含实际用户名、敏感目录结构、未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<USERNAME>、<password>、<your-project-path>、YOUR_USERNAME 等）。排除系统公共路径（如 C:/Windows、/usr/bin、/etc 等）和标准环境变量路径。特别关注 README.md、settings.json、config.*、.env、*.ini、*.yaml、*.yml、Dockerfile、docker-compose.yml、.bat、.ps1、.sh 等文件。
 
 ## 行为规则
 ## 1. 检测方法
 
 - **扫描范围**：扫描所有文本文件（包括 .md, .json, .yaml, .py, .sh, .env, config.py, settings.json, config.ini, *.cfg, .env.example, config.template.json, config.yaml, CHANGELOG.md, Dockerfile, docker-compose.yml, .bat, .ps1 等）及代码注释，使用正则表达式匹配以下模式：
-  - Windows 绝对路径：`[A-Za-z]:\\Users\\[^\\]+`、`[A-Za-z]:/Users/[^/]+`、`[A-Za-z]:/[^\s"'<>|?*]+`、`[A-Za-z]:\\[^\s"'<>|?*]+`、`[A-Za-z]:\\(?:Users|User)\<.*?>\\`
-  - Unix/Linux 绝对路径：`\/home\/[^\/]+`、`\/Users\/[^\/]+`、`\/root\/[^\/]+`、`/home/\S+`、`/Users/\S+`
+  - Windows 绝对路径：`[A-Za-z]:[/\\]Users[/\\][^/\\]+`、`[A-Za-z]:/[^\s"'<>|?*]+`、`[A-Za-z]:\\[^\s"'<>|?*]+`、`[A-Za-z]:\\(?:Users|User)\<.*?>\\`
+  - Unix/Linux 绝对路径：`/home/[^/]+/`、`/Users/[^/]+`、`/root/[^/]+`、`/home/\S+`、`/Users/\S+`
   - 通用系统目录：`[A-Za-z]:/[Users|Program Files|Windows|...]`
   - 其他常见模式：以盘符（如 C:/、D:/）开头的路径，或 `/[a-z]+/` 等 Unix 绝对路径前缀
 
@@ -39,7 +39,7 @@
 
 ## 3. 相关案例
 
-- **高频重复问题**：多个经验（ID 143, 138, 92, 80, 72）均涉及 README.md 或 settings.json 中硬编码 `C:/Users/<你的用户名>` 导致敏感信息泄露。
+- **高频重复问题**：多个经验（ID 191, 187, 181, 143, 138, 97, 92, 85, 84, 83, 82, 80, 72, 61, 55, 50, 40, 21, 20, 5, 1）均涉及 README.md 或 settings.json 中硬编码 `C:/Users/<你的用户名>` 导致敏感信息泄露。
   - 案例1：用户 `.gitignore` 中未排除 `settings.json`，导致 `C:/Users/JohnDoe/project` 被提交到 GitHub 公共仓库。
   - 案例2：用户脚本中写死 `C:/Users/<你的用户名>/data`，在他人电脑上无法运行，且暴露了个人文件夹结构。
   - 案例3：用户项目 'evomentor-agent' 的 README.md 中出现 `C:/User/...` 路径，暴露了开发者个人信息和文件结构。
@@ -58,6 +58,6 @@
 - **新手常见模式**：上述案例多次重复出现，表明这是新手常见问题，具有明确的检测和修复模式，应优先提示。
 
 ## 元数据
-- 版本: 27
-- 创建时间: 2026-05-26T16:55:31.085950
+- 版本: 28
+- 创建时间: 2026-05-26T17:23:39.389284
 - 来源: 自动合并
