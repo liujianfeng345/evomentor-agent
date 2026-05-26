@@ -1029,21 +1029,53 @@ function toggleLegendGroup(el) {
 
 function renderGraphList(nodes) {
     const container = $('#graph-list');
-    container.innerHTML = '<h3 style="margin:16px 0 10px;">知识点列表</h3>';
+    if (nodes.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    // 按 group 分组
+    const groups = {};
     nodes.forEach(node => {
-        const div = document.createElement('div');
-        div.className = 'card';
-        const levelText = node.proficiency >= 5 ? '掌握' : node.proficiency >= 3 ? '熟练' : '了解';
-        const levelClass = node.proficiency >= 5 ? 'high' : node.proficiency >= 3 ? 'mid' : 'low';
-        div.innerHTML = `
-            <div class="card-header">
-                <span class="card-title">${escapeHtml(node.label)}</span>
-                <span style="font-size:12px;color:#888;">${levelText} (${node.proficiency}/5)</span>
-            </div>
-            <div class="prog-bar"><div class="prog-fill ${levelClass}" style="width:${node.proficiency * 20}%"></div></div>
-        `;
-        container.appendChild(div);
+        const g = node.group || '未分类';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(node);
     });
+
+    let html = '<h3 style="margin:16px 0 10px;">知识点列表</h3>';
+    const sortedGroups = Object.keys(groups).sort();
+
+    sortedGroups.forEach(groupName => {
+        const items = groups[groupName];
+        html += `<div class="collapse-group">`;
+        html += `<div class="collapse-header" onclick="toggleCollapse(this)">
+            <span class="arrow">▼</span>
+            ${escapeHtml(groupName)}
+            <span class="count">${items.length} 项</span>
+        </div>`;
+        html += `<div class="collapse-body">`;
+        items.forEach(node => {
+            const levelText = node.proficiency >= 5 ? '掌握' : node.proficiency >= 3 ? '熟练' : '了解';
+            const levelClass = node.proficiency >= 5 ? 'high' : node.proficiency >= 3 ? 'mid' : 'low';
+            html += `<div class="card">
+                <div class="card-header">
+                    <span class="card-title">${escapeHtml(node.label)}</span>
+                    <span style="font-size:12px;color:#888;">${levelText} (${node.proficiency}/5)</span>
+                </div>
+                <div class="prog-bar"><div class="prog-fill ${levelClass}" style="width:${node.proficiency * 20}%"></div></div>
+            </div>`;
+        });
+        html += `</div></div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function toggleCollapse(header) {
+    const group = header.parentElement;
+    group.classList.toggle('collapsed');
+    const body = group.querySelector('.collapse-body');
+    body.classList.toggle('collapsed');
 }
 
 // 图谱控制栏事件
