@@ -454,12 +454,31 @@ async def delete_memory(memory_id: str):
 # ─── 知识图谱 ────────────────────────────────────────────
 
 @router.get("/api/graph")
-async def get_graph():
-    """返回知识图谱的节点和边。"""
+async def get_graph(
+    search: str = "",
+    parent: str = "",
+    min_level: int = 0,
+):
+    """返回知识图谱的节点和边，支持筛选。"""
     conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, topic, proficiency, parent_topic FROM user_knowledge_graph WHERE parent_topic != 'preference' ORDER BY proficiency DESC"
-    ).fetchall()
+
+    where_parts = ["parent_topic != 'preference'"]
+    params: list = []
+
+    if search:
+        where_parts.append("topic LIKE ?")
+        params.append(f"%{search}%")
+    if parent:
+        where_parts.append("parent_topic = ?")
+        params.append(parent)
+    if min_level > 0:
+        where_parts.append("proficiency >= ?")
+        params.append(min_level)
+
+    where_clause = " AND ".join(where_parts)
+    sql = f"SELECT id, topic, proficiency, parent_topic FROM user_knowledge_graph WHERE {where_clause} ORDER BY proficiency DESC"
+
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
 
     nodes: list[dict] = []
@@ -469,38 +488,45 @@ async def get_graph():
     for r in rows:
         tid = r["id"]
         topic_ids[r["topic"]] = tid
+        parent = r["parent_topic"] or ""
         nodes.append({
             "id": tid,
             "label": r["topic"],
+            "group": parent,
             "proficiency": r["proficiency"],
         })
-        if r["parent_topic"] and r["parent_topic"] != "preference":
+        if parent and parent != "preference":
             edges.append({
-                "from": r["parent_topic"],
+                "from": parent,
                 "to": r["topic"],
             })
 
-    # 为 edges 中的 parent_topic 补充不在列表中的节点
-    missing_id = -1
+    # 为 edges 中缺少的父级创建分类锚点节点（使用 10000+ 的 ID 避免冲突）
+    virtual_id = 10000
     for edge in edges:
         if edge["from"] not in topic_ids:
             nodes.append({
-                "id": missing_id,
+                "id": virtual_id,
                 "label": edge["from"],
+                "group": edge["from"],
                 "proficiency": 0,
+                "is_category": True,
             })
-            topic_ids[edge["from"]] = missing_id
-            missing_id -= 1
+            topic_ids[edge["from"]] = virtual_id
+            virtual_id += 1
 
     # 将 edge 的 label 转为 id
-    resolved_edges = []
+    resolved_edges: list[dict] = []
     for edge in edges:
         from_id = topic_ids.get(edge["from"])
         to_id = topic_ids.get(edge["to"])
         if from_id is not None and to_id is not None:
             resolved_edges.append({"from": from_id, "to": to_id})
 
-    return {"nodes": nodes, "edges": resolved_edges}
+    # 收集所有分组（去重排序）
+    groups = sorted({n["group"] for n in nodes if n["group"]})
+
+    return {"nodes": nodes, "edges": resolved_edges, "groups": groups}
 
 # ─── Skills ──────────────────────────────────────────────
 
