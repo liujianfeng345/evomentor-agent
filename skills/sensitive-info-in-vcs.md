@@ -1,13 +1,13 @@
 # Skill: sensitive-info-in-vcs
 
 ## 触发条件
-当分析用户提交的版本控制系统（如 Git）变更时，检测到文件（包括但不限于 README.md、配置文件如 .json、.yaml、.env、.ini、.cfg、config.*、settings.*，以及代码文件）中包含或可能包含硬编码的绝对路径（如 Windows 路径 C:/Users/、Unix 路径 /home/、Linux/Mac 绝对路径）或敏感信息（如用户名、密码、API 密钥、令牌、邮箱地址、电话号码、数据库连接字符串、内网 IP 等个人身份信息或环境特定配置）。重点关注新增或修改的 diff 内容、提交历史中的文件变更，以及配置文件和文档中的硬编码值。特别关注初次提交或仅包含文档的提交。
+当分析用户提交的版本控制系统（如 Git）变更时，检测到文件（包括但不限于 README.md、配置文件如 .json、.yaml、.env、.ini、.cfg、config.*、settings.*，以及代码文件如 .py、.js 等）中包含或可能包含硬编码的绝对路径（如 Windows 路径 C:/Users/、C:\Users\、Unix 路径 /home/、Linux/Mac 绝对路径如 /usr/local/、/Users/、D:/）或敏感信息（如用户名、密码、API 密钥、令牌、邮箱地址、电话号码、数据库连接字符串、内网 IP 等个人身份信息或环境特定配置）。重点关注新增或修改的 diff 内容、提交历史中的文件变更，以及配置文件和文档中的硬编码值。特别关注初次提交或仅包含文档的提交。
 
 ## 行为规则
 ## 1. 检测方法
-- 扫描仓库中所有非二进制文件（特别是 .json、.yaml、.env、.ini、.cfg、.txt、.md 文件），匹配敏感信息模式：
-  - 硬编码的绝对路径：`[A-Za-z]:\\Users\\[^\\]+`、`/home/[^/]+`、`C:/Users/[^/]+` 等，包括包含用户名占位符（如 `<你的用户名>`、`your-username`）的路径
-  - 硬编码的用户名（如 `your-username`、`<你的用户名>`、`<username>`）
+- 扫描仓库中所有非二进制文本文件（包括 .md、.json、.yaml、.py、.js、.env、.ini、.cfg、.txt 等），匹配敏感信息模式：
+  - 硬编码的绝对路径：使用正则表达式 `(?:[A-Za-z]:\\Users\\[^\\]+|[A-Za-z]:/Users/[^/]+|/home/[^/]+|/Users/[^/]+|/usr/local/[^/]+|[A-Za-z]:\\[^\\]+|[A-Za-z]:/[^/]+)` 进行匹配，包括包含用户名占位符（如 `<你的用户名>`、`your-username`、`<YourUsername>`）的路径
+  - 硬编码的用户名（如 `your-username`、`<你的用户名>`、`<username>`、`<YourUsername>`）
   - 注释或文档中包含开发者的真实用户名或机器名
   - 密码、令牌、密钥（如 `password=`、`api_key=`、`token=`、`secret=` 等）
   - 邮箱地址（如 `user@example.com`）
@@ -20,11 +20,11 @@
 - 检查文件是否属于配置文件且未被 `.gitignore` 忽略
 
 ## 2. 修复建议
-- 使用环境变量或密钥管理服务（如 AWS Secrets Manager）替代硬编码，在代码中引用环境变量
+- 使用环境变量或密钥管理服务（如 AWS Secrets Manager）替代硬编码，在代码中引用环境变量（如 `$HOME`、`%USERPROFILE%`、`${project_dir}`）
 - 使用相对路径替代绝对路径，例如将 `C:/Users/Alice/project/data/` 改为 `./data/` 或 `../data/`
 - 使用环境变量替代用户目录部分，例如 `$HOME/data/` 或 `%USERPROFILE%\\data\\`
 - 创建配置文件模板（如 `config.template.json`、`.env.example`、`config.example.json`），将真实配置加入 `.gitignore`
-- 对于需要保留模板的情况，使用通用占位符（如 `your-username`、`your-api-key`、`<你的用户名>`）并在文档中说明用户需要自行替换
+- 对于需要保留模板的情况，使用通用占位符（如 `/path/to/your/project`、`C:/Users/<YourUsername>/`、`your-api-key`、`<你的用户名>`）并在文档中说明用户需要自行替换
 - 在 `.gitignore` 中添加敏感文件（如 `*.env`、`config.local.json`、`settings.json` 本身，只提交模板文件、`*.local.*`）
 - 使用 `.gitattributes` 标记敏感文件为 `export-ignore`
 - 对于已提交的敏感信息：
@@ -38,11 +38,12 @@
 - 用户提交的 `settings.json` 中硬编码了 Windows 用户名，导致路径泄露
 - 用户提交的 `.env` 文件中包含数据库密码，未加入 `.gitignore`
 - 用户将数据库连接字符串（含密码）直接写在代码中并提交，造成安全风险
+- 经验 [213] 在 claude-pause-chime 项目中修复了 README.md 中的个人绝对路径
 - 经验 [92]、[72]、[143]、[138]、[80] 多次出现硬编码绝对路径问题，属于敏感信息泄露模式，尤其是在 settings.json 和 README.md 中重复出现
 - 经验 [138]：仅包含 README.md 的提交中出现了硬编码绝对路径
 - 此类问题常见于新手将本地开发路径直接写入文档或配置文件，导致仓库克隆后路径失效，并可能泄露本地文件结构信息
 
 ## 元数据
-- 版本: 8
-- 创建时间: 2026-05-24T21:54:37.556424
+- 版本: 9
+- 创建时间: 2026-05-26T18:53:32.595184
 - 来源: 自动合并
