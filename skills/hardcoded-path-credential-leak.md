@@ -1,63 +1,23 @@
 # Skill: hardcoded-path-credential-leak
 
 ## 触发条件
-当检测到用户提交或修改的任意文本文件（包括代码、配置文件如 settings.json、.env、config.py、config.ini、*.cfg、*.yaml、*.yml、Dockerfile、docker-compose.yml、*.bat、*.ps1、*.sh 等、脚本、README、CHANGELOG、Markdown 文档、代码注释或任何文本文件）中包含硬编码的 Windows 或 Unix/Linux 风格绝对路径，或硬编码的用户名、密码、API 密钥等敏感信息时触发。具体检测模式包括：Windows 绝对路径（如 C:/Users/...、C:\Users\...、C:/[^\s"'<>|?*]+、C:\[^\s"'<>|?*]+）、Unix/Linux 绝对路径（如 /home/...、/Users/...、/root/...）以及常见系统目录（如 Program Files、Windows）。同时检查路径中是否包含实际用户名、敏感目录结构、未替换的占位符（如 <你的用户名>、<your-username>、<username>、<YourUserName>、<your-name>、<用户名>、<USERNAME>、<password>、<your-project-path>、YOUR_USERNAME 等）。排除系统公共路径（如 C:/Windows、/usr/bin、/etc 等）和标准环境变量路径。特别关注 README.md、settings.json、config.*、.env、*.ini、*.yaml、*.yml、Dockerfile、docker-compose.yml、.bat、.ps1、.sh 等文件。
+在代码、配置文件或文档中检测到硬编码的绝对路径（如 C:/Users/、/home/username 等）或包含个人用户名的路径。
 
 ## 行为规则
-## 1. 检测方法
+## 检测方法
+1. 扫描所有文本文件（包括 .md、.json、.yaml、.py、.js 等），查找匹配 `[A-Za-z]:/Users/` 或 `/home/[^/]+` 或 `/Users/[^/]+` 等模式的绝对路径。
+2. 检查路径是否包含常见的用户名占位符（如 `<你的用户名>`、`<username>`、`yourname`）或实际用户名。
+3. 标记所有包含个人用户目录结构的路径为潜在泄露。
 
-- **扫描范围**：扫描所有文本文件（包括 .md, .json, .yaml, .py, .sh, .env, config.py, settings.json, config.ini, *.cfg, .env.example, config.template.json, config.yaml, CHANGELOG.md, Dockerfile, docker-compose.yml, .bat, .ps1 等）及代码注释，使用正则表达式匹配以下模式：
-  - Windows 绝对路径：`[A-Za-z]:[/\\]Users[/\\][^/\\]+`、`[A-Za-z]:/[^\s"'<>|?*]+`、`[A-Za-z]:\\[^\s"'<>|?*]+`、`[A-Za-z]:\\(?:Users|User)\<.*?>\\`
-  - Unix/Linux 绝对路径：`/home/[^/]+/`、`/Users/[^/]+`、`/root/[^/]+`、`/home/\S+`、`/Users/\S+`
-  - 通用系统目录：`[A-Za-z]:/[Users|Program Files|Windows|...]`
-  - 其他常见模式：以盘符（如 C:/、D:/）开头的路径，或 `/[a-z]+/` 等 Unix 绝对路径前缀
+## 修复建议
+1. 使用相对路径替代绝对路径，例如将 `C:/Users/你的名字/project/data` 改为 `./data` 或 `../data`。
+2. 对于必须使用的路径，改用环境变量（如 `%USERPROFILE%` 或 `$HOME`）或配置文件模板。
+3. 将含有真实用户信息的文件添加到 `.gitignore` 中，并提交一份模板文件（如 `config.template.json`）。
 
-- **检查内容**：
-  - 实际用户名（如 JohnDoe、YourName）
-  - 未替换的占位符：`<你的用户名>`、`<your-username>`、`<username>`、`<YourUserName>`、`<your-name>`、`<用户名>`、`<USERNAME>`、`<password>`、`<your-project-path>`、`YOUR_USERNAME` 等
-  - 硬编码的 `~` 或 `$HOME` 展开
-
-- **确认占位符是否被直接提交**：检查是否未被替换为环境变量引用（如 `%USERPROFILE%`、`$HOME`、`${env:USERPROFILE}`、`${user.home}`）或动态 API 调用（如 `os.path.expanduser()`、`pathlib.Path.home()`）。
-
-- **历史提交扫描**：对 Git 提交历史进行正则搜索，识别上述模式，特别是 .env、settings.json、config.ini 等常见配置文件中的敏感信息（如密码、API 密钥）。
-
-## 2. 修复建议
-
-- **路径替换**：将所有硬编码的绝对路径替换为相对路径（相对于项目根目录或模块目录，如 `./config/`、`./data`、`../data`）或使用环境变量引用，如 `%USERPROFILE%`（Windows）或 `$HOME`、`${env:USERPROFILE}`、`${user.home}`（Linux/Mac）。
-
-- **配置文件模板化**：创建配置文件模板（如 `settings.json.example`、`config.template.json`、`.env.example`、`.env.template`、`config.example.yaml`），将实际路径或敏感信息放入 `.gitignore` 中忽略的本地配置文件（如 `settings.json`、`.env`）。
-
-- **动态路径获取**：在代码中使用 `os.path.expanduser()` 或 `pathlib.Path.home()` 等动态获取用户目录的 API，避免硬编码。
-
-- **文档示例规范**：对于文档中的示例路径，使用通用占位符（如 `/path/to/your/project`、`C:/path/to/your/project`、`<your-project-path>`、`YOUR_USERNAME`）替代真实路径，并添加说明提醒用户自行替换，避免暴露个人文件夹结构。可使用 `例如：` 或 `示例：` 标签明确标注。
-
-- **敏感信息管理**：敏感信息（如用户名、密码、密钥）应使用环境变量、`.env` 文件（并加入 `.gitignore`）或配置管理工具（如 Vault）管理。
-
-- **提交前防护**：使用 `.gitignore` 排除包含敏感信息的文件，或使用 `git-secrets`、`truffleHog` 等工具扫描提交。在 .gitignore 中添加本地配置文件排除项（如 `settings.json`、`.env`），防止敏感信息被意外提交。
-
-- **历史泄露补救**：对于已泄露的信息，立即轮换密钥，并从 Git 历史中清除（如使用 `git filter-branch` 或 BFG Repo-Cleaner）。
-
-## 3. 相关案例
-
-- **高频重复问题**：多个经验（ID 191, 187, 181, 143, 138, 97, 92, 85, 84, 83, 82, 80, 72, 61, 55, 50, 40, 21, 20, 5, 1）均涉及 README.md 或 settings.json 中硬编码 `C:/Users/<你的用户名>` 导致敏感信息泄露。
-  - 案例1：用户 `.gitignore` 中未排除 `settings.json`，导致 `C:/Users/JohnDoe/project` 被提交到 GitHub 公共仓库。
-  - 案例2：用户脚本中写死 `C:/Users/<你的用户名>/data`，在他人电脑上无法运行，且暴露了个人文件夹结构。
-  - 案例3：用户项目 'evomentor-agent' 的 README.md 中出现 `C:/User/...` 路径，暴露了开发者个人信息和文件结构。
-  - 案例4：用户 settings.json 中硬编码 Windows 用户名，导致敏感信息提交到版本控制。
-  - 案例5：GitHub 提交中 README.md 出现硬编码绝对路径。
-  - 案例6：用户在 README.md 中写入 `C:/Users/<你的用户名>/projects/evomentor-agent`，提交后暴露了本地目录结构和用户名。
-  - 案例7：用户在 settings.json 中硬编码了 `C:/Users/<你的用户名>/.config`，提交到 GitHub 后导致敏感信息泄露。
-  - 案例8：多个提交中反复出现 `C:/Users/...` 格式的路径，表明用户未意识到该问题的普遍性。
-
-- **其他典型案例**：
-  - 用户多次在 README.md 中使用 `C:/Users/<你的用户名>/` 作为示例路径，导致文档泄露本地目录结构。
-  - 用户将 `settings.json` 中的路径硬编码为 `C:/Users/YourName/project/`，提交后暴露了个人用户名。
-  - 在脚本中直接写死 `/home/user/project/` 路径，导致其他用户无法直接运行该脚本。
-  - 用户脚本中使用了绝对路径 `/home/user/project/config.json`，导致在其他环境无法运行。
-
-- **新手常见模式**：上述案例多次重复出现，表明这是新手常见问题，具有明确的检测和修复模式，应优先提示。
+## 相关案例
+- 经验 [213]、[143]、[138]、[92]、[80]、[72] 均涉及在 README.md、settings.json 等文件中硬编码 Windows 绝对路径并暴露用户名。
 
 ## 元数据
-- 版本: 28
-- 创建时间: 2026-05-26T17:23:39.389284
-- 来源: 自动合并
+- 版本: 2
+- 创建时间: 2026-05-26T23:53:25.677044
+- 来源: 自动生成
