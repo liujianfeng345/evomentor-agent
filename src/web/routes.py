@@ -488,16 +488,16 @@ async def get_graph(
     for r in rows:
         tid = r["id"]
         topic_ids[r["topic"]] = tid
-        parent = r["parent_topic"] or ""
+        parent_topic = r["parent_topic"] or ""
         nodes.append({
             "id": tid,
             "label": r["topic"],
-            "group": parent,
+            "group": parent_topic,
             "proficiency": r["proficiency"],
         })
-        if parent and parent != "preference":
+        if parent_topic and parent_topic != "preference":
             edges.append({
-                "from": parent,
+                "from": parent_topic,
                 "to": r["topic"],
             })
 
